@@ -1,0 +1,3323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A/B Test Panel — Prototype</title>
+<meta name="viewport" content="width=1600">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #ededed;
+    color: #111;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ---- Editor chrome ---- */
+  .topbar {
+    height: 44px;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 12px;
+    position: relative;
+    z-index: 30;
+  }
+  .topbar-logo {
+    display: flex; align-items: center; gap: 4px;
+    font-weight: 700; font-size: 14px;
+    letter-spacing: -0.01em;
+    padding-right: 4px;
+  }
+  .topbar-logo .mark { display: none; }
+  .topbar-site {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: #555;
+    padding: 4px 10px;
+    border-radius: 0;
+  }
+  .topbar-site .avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, #d4d4d4, #9a9a9a);
+    display: grid; place-items: center;
+    color: #fff; font-size: 11px; font-weight: 600;
+  }
+  .topbar-nav {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 13px;
+  }
+  .topbar-nav button {
+    background: transparent; border: 0;
+    padding: 6px 10px; border-radius: 0;
+    color: #333;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .topbar-nav button:hover { background: #f3f3f3; }
+  .topbar-fit { margin-left: auto; font-size: 13px; color: #555; padding: 0 12px; }
+  .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .pill {
+    font-size: 12px; padding: 4px 10px; border-radius: 0;
+    background: #f5f5f5; color: #555; border: 1px solid #d9d9d9;
+  }
+  .ghost-btn { background: transparent; border: 0; padding: 6px 10px; border-radius: 0; font-size: 13px; color: #333; }
+  .ghost-btn:hover { background: #f3f3f3; }
+  .primary-btn {
+    background: #111; color: #fff; border: 0;
+    padding: 8px 14px; border-radius: 0; font-size: 13px; font-weight: 500;
+  }
+  .primary-btn:hover { background: #000; }
+  .primary-btn:disabled { background: #d9d9d9; color: #888; cursor: not-allowed; }
+
+  /* ---- Stage layout ---- */
+  .stage {
+    position: absolute;
+    inset: 44px 0 0 0;
+    display: flex;
+    overflow: hidden;
+  }
+  .left-rail { display: none; }
+  .canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: #ededed;
+    padding: 0 16px 16px 16px;
+  }
+  .canvas-area.regenerating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0) 80%),
+      rgba(255, 255, 255, 0.22);
+    animation: canvasRegenPulse 0.95s ease-in-out infinite;
+    z-index: 10;
+  }
+  .canvas-area.regenerating::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.26) 50%, rgba(255,255,255,0) 100%);
+    animation: canvasRegenSweep 1.1s linear infinite;
+    z-index: 9;
+  }
+  .canvas-area.regenerating .browser-frame {
+    animation: canvasRegenScale 0.95s ease-in-out infinite;
+    transform-origin: top center;
+  }
+  @keyframes canvasRegenPulse {
+    0%, 100% { opacity: 0.28; }
+    50% { opacity: 0.72; }
+  }
+  @keyframes canvasRegenSweep {
+    0% { transform: translateX(-100%); opacity: 0.15; }
+    40% { opacity: 0.6; }
+    100% { transform: translateX(100%); opacity: 0.15; }
+  }
+  @keyframes canvasRegenScale {
+    0%, 100% { transform: scale(1); filter: brightness(1) saturate(1); }
+    50% { transform: scale(0.992); filter: brightness(0.86) saturate(0.9); }
+  }
+
+  /* ---- Sub-toolbar ---- */
+  .sub-toolbar {
+    position: sticky;
+    top: 0;
+    height: 48px;
+    background: #ededed;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 12px;
+    z-index: 12;
+  }
+  .sub-toolbar .add-btn {
+    background: #fff; border: 1px solid #d9d9d9;
+    padding: 5px 14px; border-radius: 0;
+    font-size: 13px; color: #111;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: background 120ms;
+  }
+  .sub-toolbar .add-btn:hover { background: #f5f5f5; }
+  .sub-toolbar .ctx-actions {
+    flex: 1;
+    display: flex; justify-content: center; align-items: center;
+    gap: 0;
+    height: 36px;
+    padding: 0; margin: 0;
+    transition: opacity 200ms;
+  }
+  .sub-toolbar .ctx-btn {
+    background: transparent; border: 0;
+    padding: 6px 12px; border-radius: 0;
+    font-size: 13px; color: #1a1a1a;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    transition: background 100ms;
+  }
+  .sub-toolbar .ctx-btn:hover { background: rgba(0,0,0,0.05); }
+  .sub-toolbar .ctx-btn.primary-action { font-weight: 500; color: #1a1a1a; }
+  .sub-toolbar .ctx-btn.icon-only { padding: 6px; color: #555; }
+  .sub-toolbar .ctx-divider {
+    width: 1px; height: 16px; background: #c8c8c8;
+    margin: 0 6px;
+  }
+
+  /* ---- Page dropdown ---- */
+  .page-dropdown {
+    position: relative;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    font-size: 11px; color: #333;
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .page-dropdown:hover { border-color: #999; }
+
+  /* ---- Selectable site elements ---- */
+  .site-selectable {
+    cursor: pointer;
+    transition: outline 120ms;
+    outline: 2px solid transparent;
+    outline-offset: 4px;
+  }
+  .site-selectable:hover { outline-color: rgba(0,0,0,0.25); }
+  .site-selectable.is-selected { outline-color: #111 !important; outline-style: dashed; }
+
+  /* ---- Browser frame ---- */
+  .browser-frame {
+    margin: 0 auto;
+    width: min(1100px, calc(100% - 24px));
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    border-radius: 0;
+    overflow: hidden;
+    transform-origin: top center;
+  }
+  .browser-bar {
+    height: 36px;
+    background: #fafafa;
+    border-bottom: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px; color: #6b6b6b;
+    gap: 12px;
+  }
+  .browser-bar .dots { display: flex; gap: 6px; }
+  .browser-bar .dots span { width: 10px; height: 10px; border-radius: 50%; background: #e0e0e0; }
+  .browser-bar .device-toggle { display: flex; gap: 4px; }
+  .browser-bar .device-toggle button {
+    width: 22px; height: 18px; background: transparent; border: 1px solid #d0d0d0; border-radius: 0;
+    color: #888; display: grid; place-items: center;
+  }
+  .browser-bar .device-toggle button.active { color: #333; border-color: #999; }
+
+  /* ---- Floating panel ---- */
+  .floating-panel {
+    position: absolute;
+    left: 20px; top: 4px;
+    width: 400px;
+    height: calc(100% - 8px);
+    background: #fff;
+    border: 1px solid #dddddd;
+    border-radius: 0;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    display: flex; flex-direction: column;
+    z-index: 20;
+    overflow: hidden;
+  }
+  .floating-panel.narrow { width: 300px; }
+  .panel-h {
+    padding: 16px 16px 14px 20px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    border-bottom: 1px solid #ebebeb;
+  }
+  .panel-h .title { font-size: 15px; font-weight: 600; color: #111; line-height: 1.2; }
+  .panel-h .subtitle { font-size: 12px; font-weight: 400; color: #999; margin-top: 4px; line-height: 1.3; }
+  .panel-h .actions { display: flex; gap: 0; }
+  .icon-btn {
+    width: 28px; height: 28px;
+    background: transparent; border: 0; border-radius: 50%;
+    display: grid; place-items: center; color: #333;
+    transition: background 120ms;
+  }
+  .icon-btn:hover { background: #f3f3f3; }
+  .icon-btn:active { background: #e8e8e8; }
+
+  /* ---- Stepper ---- */
+  .stepper {
+    height: 44px;
+    border-bottom: 1px solid #ebebeb;
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; font-size: 13px; flex-shrink: 0;
+    padding: 0 20px;
+  }
+  .stepper button {
+    background: transparent; border: 0; padding: 4px 6px;
+    color: #aaa; border-radius: 0;
+    display: inline-flex; align-items: center; gap: 0;
+    font-weight: 400; font-size: 13px;
+    transition: color 120ms;
+  }
+  .stepper button.active { color: #111; font-weight: 500; }
+  .stepper button.done { color: #888; cursor: pointer; }
+  .stepper button:disabled { cursor: not-allowed; opacity: 1; }
+  .stepper button:not(:disabled):hover { color: #111; }
+  .stepper .sep { color: #ccc; display: flex; align-items: center; margin: 0 2px; }
+
+  /* ---- Generating loader ---- */
+  .gen-loader {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 32px; gap: 20px;
+    animation: fadeIn 200ms ease;
+  }
+  .gen-loader-title { font-size: 18px; font-weight: 600; color: #111; text-align: center; }
+  .gen-loader-bar {
+    width: 100%; height: 3px; background: #e8e8e8; overflow: hidden; border-radius: 2px;
+  }
+  .gen-loader-bar-fill {
+    height: 100%; background: #111; border-radius: 2px;
+    animation: genProgress 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  @keyframes genProgress {
+    0% { width: 0%; }
+    30% { width: 40%; }
+    60% { width: 65%; }
+    85% { width: 82%; }
+    100% { width: 90%; }
+  }
+  .gen-loader-sub { font-size: 13px; color: #aaa; text-align: center; }
+
+  /* ---- Step 2 settings layout ---- */
+  .step2-wrap { display: flex; flex-direction: column; }
+  .step2-banner {
+    margin: 16px 20px 4px;
+    background: #f7f7f7; border: 1px solid #e8e8e8;
+    padding: 10px 14px; font-size: 13px; color: #444;
+    display: flex; align-items: flex-start; gap: 8px; line-height: 1.45;
+  }
+  .step2-banner svg { flex-shrink: 0; margin-top: 1px; }
+  .step2-section { padding: 20px 20px 0; }
+  .step2-section-title { font-size: 15px; font-weight: 700; color: #111; margin-bottom: 14px; }
+  .step2-label { font-size: 12px; color: #888; margin-bottom: 5px; }
+  .step2-field {
+    width: 100%; border: 1px solid #ddd; padding: 9px 12px;
+    font: inherit; font-size: 13px; color: #111;
+    background: #fff; outline: none;
+  }
+  .step2-field:focus { border-color: #888; }
+  .step2-select-wrap { position: relative; }
+  .step2-select-wrap select {
+    width: 100%; border: 1px solid #ddd; padding: 9px 32px 9px 12px;
+    font: inherit; font-size: 13px; color: #111;
+    background: #fff; outline: none;
+    appearance: none; cursor: pointer;
+  }
+  .step2-select-wrap select:focus { border-color: #888; }
+  .step2-select-wrap svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #888; }
+  .step2-divider { border: none; border-top: 1px solid #ebebeb; margin: 20px 20px 0; }
+  .step2-field-gap { margin-bottom: 12px; }
+  .metric-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .metric-chip {
+    border: 1px solid #ddd; background: #fff; padding: 7px 14px;
+    font-size: 13px; color: #555; border-radius: 0; cursor: pointer;
+    transition: border-color 120ms, color 120ms;
+  }
+  .metric-chip:hover { border-color: #888; color: #111; }
+  .metric-chip.selected { border-color: #111; border-width: 1.5px; color: #111; font-weight: 500; }
+  .metric-subtitle { font-size: 12px; color: #888; margin-bottom: 14px; margin-top: -8px; line-height: 1.4; }
+  .step2-advanced-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 20px 20px; cursor: pointer;
+  }
+  .step2-advanced-row:hover .step2-adv-arrow { color: #111; }
+  .step2-adv-title { font-size: 15px; font-weight: 700; color: #111; }
+  .step2-adv-sub { font-size: 12px; color: #888; margin-top: 3px; }
+  .step2-adv-arrow { color: #bbb; transition: color 120ms; }
+  .adv-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 0; }
+  .adv-section { border-bottom: 1px solid #ebebeb; padding: 16px 0; }
+  .adv-section:last-child { border-bottom: 0; padding-bottom: 4px; }
+  .adv-section-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 3px; }
+  .adv-section-sub { font-size: 11px; color: #888; margin-bottom: 12px; line-height: 1.4; }
+  .adv-sublabel { font-size: 11px; color: #555; margin-bottom: 6px; margin-top: 12px; }
+  .adv-sublabel:first-of-type { margin-top: 0; }
+  .adv-btn-group { display: flex; width: 100%; border: 1px solid #d9d9d9; overflow: hidden; }
+  .adv-btn-group button {
+    flex: 1; padding: 8px 4px; background: #fff; border: 0;
+    border-right: 1px solid #d9d9d9;
+    font-size: 11px; color: #555;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    cursor: pointer; transition: background 120ms;
+  }
+  .adv-btn-group button:last-child { border-right: 0; }
+  .adv-btn-group button.active { background: #f0f0f0; color: #111; font-weight: 500; }
+  .adv-btn-group button svg { opacity: 0.6; }
+  .adv-btn-group button.active svg { opacity: 1; }
+  .adv-exposure-row { display: flex; align-items: center; gap: 10px; }
+  .adv-exposure-val { font-size: 13px; font-weight: 500; color: #111; min-width: 38px; }
+  .adv-exposure-row input[type="range"] { flex: 1; }
+  .adv-split-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .adv-split-row:last-child { margin-bottom: 0; }
+  .adv-split-label { font-size: 12px; font-weight: 500; color: #555; min-width: 38px; display: flex; align-items: center; gap: 5px; }
+  .adv-split-label .var-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #bbb; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: #555; }
+  .adv-split-row input[type="range"] { flex: 1; }
+  .adv-body input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    height: 4px; background: #d0d0d0; border-radius: 2px; outline: none;
+  }
+  .adv-body input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #111; cursor: pointer; border: 0;
+  }
+  .adv-body input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #111; cursor: pointer; border: 0;
+  }
+
+  /* ---- Panel scroll ---- */
+  .panel-body { flex: 1; overflow-y: auto; }
+  .panel-body.variant-b-content-panel {
+    display: flex;
+    width: 360px;
+    height: 832px;
+    padding: 16px 0 8px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    background: #FFF;
+    margin: 0 auto;
+    align-self: center;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .panel-body.variant-b-content-panel .changes-list {
+    width: 100%;
+    padding: 0 16px 8px;
+  }
+  .panel-foot {
+    border-top: 1px solid #ebebeb;
+    padding: 16px 20px 14px;
+    background: #fff; flex-shrink: 0;
+  }
+  .panel-foot .row { display: flex; justify-content: space-between; align-items: center; }
+  .panel-foot .disclaimer {
+    margin-top: 10px; font-size: 11.5px;
+    text-align: center; color: #aaa; line-height: 1.4;
+  }
+  .generate-btn {
+    width: 100%; height: 46px; border: 0; border-radius: 0;
+    background: #111; color: #fff;
+    font-size: 14px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 120ms; cursor: pointer;
+  }
+  .generate-btn.inline {
+    width: auto;
+    min-width: 130px;
+    height: 44px;
+    padding: 0 18px;
+  }
+  .generate-btn:not(:disabled):hover { background: #000; }
+  .generate-btn.disabled, .generate-btn:disabled { background: #d9d9d9; color: #999; cursor: not-allowed; }
+  .back-btn {
+    background: transparent; border: 0;
+    display: inline-flex; align-items: center; gap: 4px;
+    color: #6b6b6b; font-size: 16px; padding: 8px 10px;
+  }
+  .back-btn:hover { color: #111; }
+  .next-btn {
+    background: #111; color: #fff; border: 0;
+    padding: 8px 14px; border-radius: 0;
+    font-size: 16px; font-weight: 400;
+    min-width: 102px; transition: background 120ms;
+  }
+  .next-btn.disabled, .next-btn:disabled { background: #d9d9d9; color: #888; cursor: not-allowed; }
+  .next-btn:not(:disabled):hover { background: #000; }
+
+  /* ---- Inputs ---- */
+  .field-label-row { display: flex; justify-content: space-between; align-items: center; }
+  .field-label { font-size: 14px; color: #111; }
+  .char-count { font-size: 14px; color: #6b6b6b; font-variant-numeric: tabular-nums; }
+  .char-count.warn { color: #555; }
+  .textarea-shell {
+    border: 1px solid #e0e0e0; background: #fff;
+    transition: border-color 120ms;
+    display: flex; flex-direction: column;
+    border-radius: 4px;
+  }
+  .textarea-shell:focus-within { border-color: #999; }
+  .textarea-shell textarea {
+    flex: 1; border: 0; resize: none;
+    font: inherit; font-size: 13px; color: #333;
+    padding: 14px 14px 8px 14px;
+    background: transparent; outline: none;
+    line-height: 1.5; min-height: 110px;
+  }
+  .textarea-shell textarea::placeholder { color: #bbb; }
+  .enhance-row {
+    padding: 8px 12px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid #f0f0f0;
+  }
+  .enhance-btn {
+    background: transparent; border: 0;
+    font-weight: 400; font-size: 13px; color: #999;
+    padding: 0;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: color 120ms;
+    cursor: pointer;
+  }
+  .enhance-btn:not(:disabled):hover { color: #555; }
+  .enhance-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .enhance-btn.active { color: #555; }
+  .mic-btn {
+    background: transparent; border: 0; padding: 0;
+    color: #bbb; display: grid; place-items: center;
+    transition: color 120ms; cursor: pointer;
+  }
+  .mic-btn:hover { color: #888; }
+  .suggestion-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
+  .chip {
+    border: 1px solid #e0e0e0; background: #fff;
+    padding: 7px 14px; font-size: 13px; color: #333;
+    border-radius: 20px; transition: background 120ms, border-color 120ms;
+    text-align: center;
+  }
+  .chip:hover { background: #f5f5f5; border-color: #bbb; }
+
+  /* ---- Step content ---- */
+  .step-pad-32 { padding: 32px 20px; }
+
+  /* ---- Accordion ---- */
+  .accordion-list { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px; }
+  .acc-item { border: 1px solid #d9d9d9; background: #fff; transition: border-color 120ms; }
+  .acc-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px; cursor: pointer; user-select: none;
+  }
+  .acc-head .titleblock { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+  .acc-head .titletext { font-weight: 700; font-size: 14px; color: #333; line-height: 1.4; }
+  .progress-bar { width: 148px; height: 4px; background: #ededed; overflow: hidden; position: relative; }
+  .progress-bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #111; transition: width 240ms ease, background 240ms; }
+  .acc-head .right { display: flex; align-items: center; gap: 16px; }
+  .acc-head .count { font-size: 14px; color: #6b6b6b; font-variant-numeric: tabular-nums; }
+  .acc-head .count.complete { color: #111; font-weight: 500; }
+  .acc-body { padding: 0 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .formrow { display: flex; flex-direction: column; gap: 6px; }
+  .formrow label { font-size: 12px; color: #555; }
+  .formrow input[type="text"], .formrow textarea, .formrow select {
+    border: 1px solid #d9d9d9; padding: 8px 10px;
+    font: inherit; font-size: 14px; background: #fff; color: #111;
+    outline: none; border-radius: 0;
+  }
+  .formrow input[type="text"]:focus, .formrow textarea:focus, .formrow select:focus { border-color: #888; }
+  .formrow textarea { resize: none; min-height: 60px; }
+  .formrow .help { font-size: 12px; color: #6b6b6b; }
+  .pill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pill-grid button {
+    border: 1px solid #d9d9d9; background: #fff;
+    padding: 12px; font-size: 14px; text-align: center; color: #333;
+    transition: all 120ms;
+  }
+  .pill-grid button:hover { border-color: #888; }
+  .pill-grid button.selected { border-color: #111; background: #111; color: #fff; }
+  .seg { display: inline-flex; border: 1px solid #d9d9d9; overflow: hidden; }
+  .seg button { padding: 6px 14px; background: #fff; border: 0; font-size: 13px; color: #555; }
+  .seg button + button { border-left: 1px solid #d9d9d9; }
+  .seg button.active { background: #111; color: #fff; }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-row .val { font-size: 14px; font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; color: #111; }
+
+  /* ---- Variant B step ---- */
+  .changes-list { display: flex; flex-direction: column; gap: 18px; padding: 0 16px 20px; }
+  .step3-banner {
+    border: 1px solid #d8d8d8;
+    background: #f5f5f5;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #333;
+    line-height: 1.35;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .step3-banner .spark { margin-top: 1px; color: #111; }
+  .step3-banner strong { font-weight: 600; }
+  .step3-section {
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 14px;
+  }
+  .step3-section h4 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: #111;
+  }
+  .step3-section .sub {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #6d6d6d;
+    line-height: 1.25;
+  }
+  .variant-picker {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .variant-option {
+    border: 1px solid #d1d1d1;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+  }
+  .variant-option.selected {
+    border: 2px dashed #111;
+    padding: 9px 11px;
+  }
+  .variant-option .left {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .variant-option .dot {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #999;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 17px;
+    color: #444;
+    flex-shrink: 0;
+  }
+  .variant-option .label {
+    font-size: 14px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .variant-option .edit {
+    border: 0;
+    background: transparent;
+    color: #666;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+  }
+  .changes-review {
+    padding-top: 2px;
+  }
+  .changes-review .title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111;
+  }
+  .changes-review .sub {
+    margin-top: 4px;
+    font-size: 13px;
+    color: #6d6d6d;
+    line-height: 1.3;
+  }
+  .changes-stack {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .change-card {
+    border: 1px solid #d0d0d0;
+    padding: 10px 12px;
+    background: #fff;
+    transition: border-color 120ms, opacity 240ms, box-shadow 200ms, transform 200ms;
+  }
+  .change-card:hover { border-color: #888; }
+  .change-card.focused { border: 2px dashed #111; padding: 9px 11px; }
+  .change-card.removing { opacity: 0; transform: translateY(-4px); }
+  .change-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .change-card .h { font-size: 29px; font-weight: 400; color: #111; line-height: 1.2; transform: scale(0.5); transform-origin: left top; white-space: nowrap; }
+  .change-card .kind { margin-top: 3px; font-size: 13px; color: #676767; display: inline-flex; align-items: center; gap: 5px; }
+  .change-card-actions { display: inline-flex; align-items: center; gap: 2px; }
+  .ai-pill {
+    border: 1px solid #cfcfcf;
+    background: #f5f5f5;
+    border-radius: 20px;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
+    color: #444;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .icon-action {
+    background: transparent;
+    border: 0;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    color: #666;
+  }
+  .icon-action:hover { background: #f3f3f3; color: #111; }
+  .variant-rows { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .variant-rows .row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: #575757;
+    line-height: 1.35;
+  }
+  .variant-rows .bullet {
+    color: #666;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .variant-rows .prefix { color: #666; margin-right: 4px; }
+  .variant-rows .row.b .text { color: #222; font-weight: 500; }
+  .variant-rows .edit-input {
+    flex: 1;
+    border: 1px solid #999;
+    background: #fff;
+    padding: 2px 5px;
+    font: inherit;
+    font-size: 13px;
+    color: #222;
+    outline: none;
+  }
+
+  @keyframes targetPulse {
+    0% { outline-color: #666; outline-offset: 4px; }
+    50% { outline-color: #888; outline-offset: 10px; }
+    100% { outline-color: #666; outline-offset: 4px; }
+  }
+  .canvas-area .target-focus {
+    outline: 3px dashed #666 !important;
+    outline-offset: 6px !important;
+    animation: targetPulse 1.4s ease-in-out infinite;
+  }
+
+  /* ---- Publish banner ---- */
+  .publish-banner {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: 64px;
+    background: #f5f5f5; border: 1px solid #d9d9d9; color: #444;
+    font-size: 13px; padding: 10px 14px;
+    border-radius: 0;
+    display: inline-flex; align-items: center; gap: 12px;
+    z-index: 15; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    animation: fadeIn 220ms ease;
+  }
+  .publish-banner.live {
+    background: #e8eef6;
+    border-color: #c2cfdf;
+    color: #2f3a4a;
+    cursor: move;
+    user-select: none;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+  .publish-banner.live .drag-handle {
+    width: 28px;
+    height: 100%;
+    min-height: 36px;
+    border-right: 1px solid #c2cfdf;
+    display: grid;
+    place-items: center;
+    color: #5a6880;
+    flex-shrink: 0;
+  }
+  .publish-banner.live .live-text {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .publish-banner.live .pub-btn {
+    background: #dfe7f2;
+    color: #2d3a4d;
+    border-left: 1px solid #c2cfdf;
+    height: 100%;
+    min-height: 36px;
+    padding: 0 12px;
+    font-weight: 600;
+  }
+  .publish-banner.live .pub-btn:hover { background: #d4deec; }
+  .publish-banner.completed {
+    background: #deece8;
+    border-color: #b9d0ca;
+    color: #304942;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+  .publish-banner.completed .drag-handle {
+    width: 28px;
+    min-height: 36px;
+    display: grid;
+    place-items: center;
+    color: #5a746d;
+    border-right: 1px solid #b9d0ca;
+    flex-shrink: 0;
+  }
+  .publish-banner.completed .live-text {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .publish-banner.completed .pub-btn {
+    background: #cfe2dc;
+    color: #2f4741;
+    border-left: 1px solid #b9d0ca;
+    min-height: 36px;
+    padding: 0 12px;
+    font-weight: 600;
+  }
+  .publish-banner.completed .pub-btn:hover { background: #c3d8d1; }
+  .publish-banner .pub-btn {
+    background: #111; color: #fff; border: 0;
+    padding: 6px 12px; border-radius: 0; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .publish-banner .pub-btn:hover { background: #000; }
+  .topbar .primary-btn.attention {
+    animation: pulseBtn 1.4s ease-in-out infinite;
+  }
+  @keyframes pulseBtn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(180,180,180,0.6); }
+    50% { box-shadow: 0 0 0 6px rgba(180,180,180,0); }
+  }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: grid; place-items: center;
+    z-index: 200; animation: fadeIn 180ms ease;
+  }
+  .modal {
+    background: #fff; width: 440px;
+    border-radius: 0; box-shadow: 0 12px 48px rgba(0,0,0,0.25); overflow: hidden;
+  }
+  .modal-h { padding: 20px 24px 8px; }
+  .modal-h .t { font-size: 18px; font-weight: 600; color: #111; margin: 0; }
+  .modal-h .s { font-size: 13px; color: #6b6b6b; margin: 6px 0 0; line-height: 1.5; }
+  .modal-body { padding: 16px 24px; font-size: 14px; color: #333; line-height: 1.5; }
+  .modal-body ul { margin: 8px 0 0; padding-left: 20px; color: #555; }
+  .modal-body li { margin-bottom: 6px; }
+  .modal-foot {
+    padding: 16px 24px 20px;
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .modal-foot button { padding: 8px 16px; border-radius: 0; border: 0; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .modal-foot .secondary { background: #f3f3f3; color: #333; }
+  .modal-foot .secondary:hover { background: #e5e5e5; }
+  .modal-foot .primary { background: #111; color: #fff; }
+  .modal-foot .primary:hover { background: #000; }
+  .modal-foot .primary:disabled { background: #888; cursor: wait; }
+  .modal.publish-flow { width: 520px; }
+  .modal.publish-flow .modal-h { padding: 14px 14px 8px; }
+  .modal.publish-flow .modal-h .t {
+    font-size: 35px;
+    line-height: 1.2;
+    font-weight: 400;
+    transform: scale(0.5);
+    transform-origin: left top;
+    white-space: nowrap;
+    margin: 0;
+  }
+  .modal.publish-flow .modal-h .s {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #555;
+    max-width: 470px;
+  }
+  .publish-summary {
+    padding: 4px 14px 0;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.35;
+  }
+  .publish-summary .line { margin-bottom: 3px; }
+  .publish-summary .k { color: #6b6b6b; margin-right: 6px; }
+  .modal.publish-flow .modal-foot {
+    padding: 14px;
+    border-top: 0;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .modal.publish-flow .modal-foot .secondary {
+    background: #f5f5f5;
+    border: 1px solid #d9d9d9;
+    color: #333;
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+  .modal.publish-flow .modal-foot .primary {
+    background: #111;
+    color: #fff;
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+  .modal.success-popover { width: 400px; min-height: 360px; }
+  .modal.success-popover .modal-h {
+    padding: 18px 18px 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .modal.success-popover .modal-h .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+  .success-body { padding: 14px 22px 22px; color: #222; }
+  .success-check { font-size: 52px; line-height: 1; margin-top: 8px; text-align: center; font-weight: 300; }
+  .success-title {
+    margin-top: 14px;
+    font-size: 18px;
+    line-height: 1.28;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    text-align: center;
+  }
+  .success-sub {
+    margin-top: 18px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #666;
+    text-align: left;
+    max-width: 100%;
+  }
+  .success-link {
+    margin-top: 18px;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.3;
+    color: #737373;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .success-link strong { color: #1a1a1a; font-weight: 600; margin-left: 2px; }
+  .success-mobile { margin-top: 14px; text-align: left; font-size: 13px; color: #1a1a1a; font-weight: 500; }
+  .modal.winner-popover {
+    width: 310px;
+    min-height: 250px;
+  }
+  .modal.winner-popover .modal-h {
+    padding: 12px 12px 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .winner-body {
+    padding: 6px 22px 20px;
+    text-align: center;
+    color: #222;
+  }
+  .winner-check { font-size: 44px; line-height: 1; margin-top: 2px; }
+  .winner-title { margin-top: 8px; font-size: 34px; transform: scale(0.5); transform-origin: center top; font-weight: 600; }
+  .winner-sub {
+    margin-top: -10px;
+    font-size: 13px;
+    line-height: 1.38;
+    color: #666;
+    text-align: center;
+  }
+  .winner-actions {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .winner-actions .primary {
+    border: 0;
+    background: #111;
+    color: #fff;
+    height: 28px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .winner-actions .link {
+    border: 0;
+    background: transparent;
+    color: #222;
+    font-size: 13px;
+    padding: 0;
+  }
+  .modal.results-popover {
+    width: min(1280px, 80vw);
+    height: min(760px, 80vh);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .results-topbar {
+    height: 42px;
+    border-bottom: 1px solid #e4e4e4;
+    padding: 0 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #444;
+  }
+  .results-topbar .left { font-weight: 500; }
+  .results-topbar .right {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: #555;
+  }
+  .results-wrap {
+    display: grid;
+    grid-template-columns: 1fr 292px;
+    min-height: 0;
+    flex: 1;
+  }
+  .results-main {
+    padding: 16px 18px 14px;
+    border-right: 1px solid #e2e2e2;
+    overflow: hidden;
+  }
+  .results-headline {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .results-title {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 600;
+    color: #111;
+  }
+  .results-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .results-sub {
+    font-size: 12px;
+    color: #777;
+    margin-top: 8px;
+  }
+  .results-ai-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #111;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .results-ai-btn:hover { background: #000; }
+  .results-green-banner {
+    margin-top: 8px;
+    background: #dff0e9;
+    border: 1px solid #c2ddd1;
+    color: #315148;
+    padding: 6px 8px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .results-green-banner button {
+    border: 0;
+    background: #2d3f39;
+    color: #fff;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .results-table {
+    margin-top: 10px;
+    border: 1px solid #d8d8d8;
+    font-size: 11px;
+  }
+  .results-table .r {
+    display: grid;
+    grid-template-columns: 1.5fr 0.75fr 0.75fr 0.7fr 0.7fr 28px;
+    border-bottom: 1px solid #ececec;
+  }
+  .results-table .c.kebab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    padding: 0;
+    cursor: pointer;
+  }
+  .results-table .c.kebab:hover { color: #555; }
+  .results-table .r:last-child { border-bottom: 0; }
+  .results-table .c { padding: 7px 8px; color: #444; }
+  .results-table .head .c { background: #fafafa; color: #666; }
+  .results-grid {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .results-card {
+    border: 1px solid #d9d9d9;
+    min-height: 272px;
+    background: #fff;
+  }
+  .results-card .h {
+    border-bottom: 1px solid #ececec;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #444;
+    display: flex;
+    justify-content: space-between;
+  }
+  .results-card .b {
+    padding: 10px;
+    color: #777;
+    font-size: 11px;
+  }
+  .results-grid.bottom {
+    margin-top: 12px;
+    transform: translateY(6px);
+  }
+  .results-grid.bottom .results-card { min-height: 220px; }
+  .results-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+    height: 170px;
+    padding: 0;
+  }
+  .results-bars .bar {
+    width: 38px;
+    background: #6e6e6e;
+  }
+  .results-bars .bar.b { background: #343434; }
+  .results-donut-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 16px 8px 8px;
+  }
+  .results-donut-svg {
+    flex-shrink: 0;
+    width: 160px;
+    height: 160px;
+  }
+  .results-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: 11px;
+    color: #444;
+  }
+  .results-donut-legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+  }
+  .results-donut-legend-item .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .results-donut-legend-item .label-name {
+    font-size: 11px;
+    color: #555;
+    display: block;
+  }
+  .results-donut-legend-item .label-val {
+    font-size: 11px;
+    color: #888;
+    display: block;
+    margin-top: 1px;
+  }
+  .results-line {
+    width: 100%;
+    height: 170px;
+    display: block;
+  }
+  .results-topclicks {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    color: #4a4a4a;
+  }
+  .results-topclicks td, .results-topclicks th {
+    border: 1px solid #ececec;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 400;
+  }
+  .results-topclicks th { background: #fafafa; color: #666; }
+  .results-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: #666;
+    margin-top: 6px;
+    padding-left: 86px;
+  }
+  .results-legend .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+    vertical-align: -1px;
+  }
+  .results-chat {
+    padding: 14px 12px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+  .results-chat .title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #333;
+    font-weight: 600;
+  }
+  .results-chat .progress-row {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .results-chat .tip {
+    margin-top: 10px;
+    border: 1px solid #dfdfdf;
+    background: #f8f8f8;
+    padding: 8px;
+    font-size: 11px;
+    color: #666;
+  }
+  .results-chat .text {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #555;
+    line-height: 1.4;
+  }
+  .results-chat .ask {
+    margin-top: auto;
+    border: 1px solid #ddd;
+    min-height: 86px;
+    font-size: 12px;
+    color: #a0a0a0;
+    padding: 8px;
+  }
+  .modal-bg.success-bg { background: rgba(0,0,0,0.35); }
+  .modal-bg.results-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 500;
+    display: grid;
+    place-items: center;
+    animation: fadeIn 180ms ease;
+  }
+  .pub-spinner {
+    width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin 800ms linear infinite;
+    display: inline-block; margin-right: 6px; vertical-align: -1px;
+  }
+
+  .change-actions button.refreshing svg { animation: spin 800ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- Manage A/B test panel ---- */
+  .ab-manage-panel {
+    position: absolute;
+    top: 4px;
+    left: 20px;
+    width: 392px;
+    height: calc(100% - 8px);
+    background: #fff;
+    border: 1px solid #d8d8d8;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+    z-index: 220;
+    animation: fadeIn 170ms ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .abp-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid #e4e4e4;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .abp-head-left { min-width: 0; flex: 1; overflow: hidden; }
+  .abp-title { font-size: 17px; font-weight: 600; line-height: 1.2; margin: 0; }
+  .abp-sub { margin-top: 2px; color: #6a6a6a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .abp-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .abp-stop { height: 28px; padding: 0 10px; border: 1px solid #c9c9c9; background: #f8f8f8; color: #333; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  .abp-icon { width: 24px; height: 24px; border: 0; background: transparent; color: #444; display: grid; place-items: center; cursor: pointer; }
+  .abp-body { padding: 14px 18px 0; }
+  .abp-lines { color: #222; font-size: 13px; }
+  .abp-lines .line { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: #333; }
+  .abp-lines .pill-live { background: #dbe8ff; border: 1px solid #bfd0ef; padding: 1px 6px; color: #294a77; font-size: 11px; }
+  .abp-more { margin-top: 10px; border: 0; background: transparent; padding: 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #111; display: block; }
+  .abp-sec { border-top: 1px solid #e5e5e5; margin-top: 14px; padding: 14px 18px 0; }
+  .abp-sec h4 { margin: 0; font-size: 15px; font-weight: 700; color: #111; }
+  .abp-sec .s { margin-top: 4px; color: #6a6a6a; font-size: 12px; line-height: 1.4; }
+  .abp-variant { margin-top: 10px; border: 1px solid #d4d4d4; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .abp-variant.selected { border: 2px dashed #222; padding: 9px 11px; }
+  .abp-variant .l1 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+  .abp-variant .dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #999; display: grid; place-items: center; font-size: 11px; color: #555; flex-shrink: 0; }
+  .abp-variant .best { background: #dbe8ff; border: 1px solid #bfd0ef; padding: 1px 5px; color: #294a77; font-size: 11px; }
+  .abp-variant .meta { margin-top: 4px; color: #6b6b6b; font-size: 12px; padding-left: 30px; }
+  .abp-kpis { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .abp-kpi { border: 1px solid #d7d7d7; padding: 8px 10px; }
+  .abp-kpi .k { color: #666; font-size: 12px; }
+  .abp-kpi .v { margin-top: 4px; font-size: 22px; font-weight: 500; color: #111; }
+  .abp-sec.grow { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .abp-chart {
+    margin-top: 10px;
+    border: 1px solid #d7d7d7;
+    padding: 10px 12px 8px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .abp-chart .t { color: #666; font-size: 11px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .abp-chart .t-legend { display: inline-flex; gap: 10px; font-size: 10px; }
+  .abp-chart .t-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .abp-chart .t-legend .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .abp-chart .chart-svg { width: 100%; flex: 1; display: block; min-height: 100px; }
+  .abp-foot {
+    margin-top: auto;
+    border-top: 1px solid #e5e5e5;
+    padding: 12px 16px;
+    text-align: center;
+  }
+  .abp-foot button {
+    border: 0;
+    background: transparent;
+    color: #111;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* ---- Site pages panel ---- */
+  .pages-head {
+    padding: 12px 16px 0;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .pages-head h2 {
+    margin: 0; font-size: 16px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  }
+  .pages-section { padding: 8px 16px 0; }
+  .pages-section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; font-weight: 500; color: #6b6b6b;
+    cursor: pointer; padding: 8px 0;
+  }
+  .pages-cards {
+    display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto; padding: 4px 16px 0; flex: 1;
+  }
+  .page-card {
+    border: 1px solid #cfcfcf; background: #fff;
+    transition: border-color 120ms; position: relative; overflow: hidden; flex-shrink: 0;
+    display: flex; align-items: center; min-height: 62px;
+  }
+  .page-card:hover { border-color: #999; }
+  .page-card.selected { border-color: #111; border-style: dashed; }
+  .page-card .thumb {
+    width: 68px; height: 100%;
+    min-height: 62px;
+    background-image: linear-gradient(135deg, transparent calc(50% - 0.5px), #c8c8c8 calc(50% - 0.5px), #c8c8c8 calc(50% + 0.5px), transparent calc(50% + 0.5px));
+    background-color: #efefef;
+    border-right: 1px solid #d7d7d7;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .page-card .thumb .ab-pill {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: #dbe8ff;
+    border: 1px solid #b8cbef;
+    color: #2d4a7d;
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 4px;
+  }
+  .page-card .thumb .ab-pill.completed {
+    background: #d8efe6;
+    border-color: #b7d9ca;
+    color: #245546;
+  }
+  .page-card .row {
+    padding: 8px 10px 8px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 16px; line-height: 1.2; font-weight: 400; color: #222;
+    width: 100%;
+    min-width: 0;
+  }
+  .page-card .row-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+  }
+  .page-card .home-indicator {
+    color: #6b6b6b;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+  }
+  .page-card .more {
+    background: transparent; border: 0; color: #6b6b6b;
+    width: 24px; height: 24px; border-radius: 0; display: grid; place-items: center;
+    opacity: 0;
+    transition: opacity 120ms, background 120ms, color 120ms;
+  }
+  .page-card:hover .more,
+  .page-card .more:focus-visible { opacity: 1; }
+  .page-card .more:hover { background: #f3f3f3; color: #111; }
+  .page-card .more.selected {
+    opacity: 1;
+    background: #ececec;
+    color: #111;
+  }
+  .page-card .test-row { display: none; }
+  .pages-foot {
+    border-top: 1px solid #ccc; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    background: #fff; flex-shrink: 0;
+  }
+  .pages-foot button { height: 48px; border: 0; font-size: 16px; font-weight: 500; border-radius: 0; }
+  .pages-foot .add { background: #f4f4f4; color: #111; }
+  .pages-foot .add:hover { background: #ebebeb; }
+  .pages-foot .manage { background: #111; color: #fff; }
+  .pages-foot .manage:hover { background: #000; }
+
+  /* ---- Context menu ---- */
+  .ctx-menu {
+    position: fixed; background: #fff; border: 1px solid #cccccc;
+    width: 188px; z-index: 100; padding: 4px 0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08); animation: ctxIn 120ms ease-out;
+  }
+  @keyframes ctxIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .ctx-menu .sep { border-top: 1px solid #cccccc; margin: 4px 0; }
+  .ctx-item {
+    width: 100%; height: 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px; background: transparent; border: 0;
+    font-size: 12px; color: #111; text-align: left;
+  }
+  .ctx-item:hover { background: #f4f4f4; }
+  .ctx-item.highlight { background: #f4f4f4; font-weight: 400; }
+  .ctx-item .new {
+    background: #333; color: #fff;
+    font-size: 10px; font-weight: 500; padding: 2px 4px;
+  }
+
+  /* ---- Site preview content ---- */
+  .site-page { padding: 32px 56px 64px; min-height: 600px; }
+  .site-nav-row { display: flex; align-items: center; justify-content: space-between; padding: 0 0 32px; }
+  .site-brand { font-weight: 600; font-size: 18px; line-height: 1.1; }
+  .site-brand .sub { font-weight: 400; font-size: 13px; color: #555; }
+  .site-nav { display: flex; gap: 28px; font-size: 14px; color: #333; }
+  .site-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; min-height: 420px; }
+  .site-img-ph {
+    aspect-ratio: 1.05;
+    background-image: linear-gradient(135deg, transparent calc(50% - 0.5px), #cccccc calc(50% - 0.5px), #cccccc calc(50% + 0.5px), transparent calc(50% + 0.5px));
+    border: 1px solid #d9d9d9; background-color: #fff;
+  }
+  .site-h1 {
+    font-size: 44px; line-height: 1.1; font-weight: 600; letter-spacing: -0.02em;
+    margin: 0 0 24px; color: #111;
+  }
+  .site-h1 .var-pill {
+    display: inline-block; vertical-align: middle;
+    background: #f3f3f3; color: #444; font-size: 12px;
+    padding: 2px 8px; border-radius: 0; margin-left: 8px; font-weight: 500; letter-spacing: 0;
+  }
+  [data-variant="A"] .var-pill::before { content: "Variant A"; }
+  [data-variant="B"] .var-pill::before { content: "Variant B"; }
+  .site-p { font-size: 16px; color: #444; line-height: 1.55; margin: 0 0 28px; max-width: 480px; }
+  .site-cta-lg {
+    background: #fff; border: 1px solid #888;
+    padding: 12px 22px; font-size: 16px; cursor: pointer;
+  }
+  .site-strip {
+    margin-top: 64px; padding: 16px 0;
+    border-top: 1px solid #ddd; border-bottom: 1px solid #ddd;
+    overflow: hidden; white-space: nowrap; font-size: 16px; color: #555;
+  }
+  .site-strip span { margin: 0 24px; }
+
+  /* ---- Bottom chrome ---- */
+  .bottom-utils {
+    position: absolute; left: 248px; bottom: 16px;
+    display: flex; flex-direction: column; gap: 6px; z-index: 14;
+  }
+  .stage:not(:has(.floating-panel)) .bottom-utils { left: 16px; }
+  .bottom-utils button {
+    width: 28px; height: 28px; background: transparent; border: 0;
+    color: #6b6b6b; display: grid; place-items: center; border-radius: 0;
+  }
+  .bottom-utils button:hover { background: rgba(0,0,0,0.06); color: #111; }
+  .bottom-chat {
+    position: absolute; right: 16px; bottom: 16px;
+    width: 36px; height: 36px; border-radius: 50%; background: #111;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18); cursor: pointer;
+    display: grid; place-items: center; color: #fff; z-index: 14;
+    transition: transform 120ms;
+  }
+  .bottom-chat:hover { transform: scale(1.06); }
+  .section-handles {
+    position: absolute; left: 248px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 4px; z-index: 13;
+  }
+  .stage:not(:has(.floating-panel)) .section-handles { left: 6px; }
+  .section-handles button {
+    width: 22px; height: 22px; background: #fff; border: 1px solid #d9d9d9;
+    color: #555; border-radius: 0; display: grid; place-items: center;
+    transition: background 120ms, color 120ms;
+  }
+  .section-handles button:hover { background: #f5f5f5; color: #111; border-color: #999; }
+  .section-rightmenu {
+    position: absolute; right: 24px; bottom: 68px;
+    display: flex; flex-direction: column; gap: 4px; z-index: 14;
+    animation: rmenuIn 180ms ease-out;
+  }
+  @keyframes rmenuIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .section-rightmenu button {
+    background: #fff; border: 1px solid #d9d9d9;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    padding: 6px 12px; text-align: left; font-size: 12px; color: #1a1a1a;
+    border-radius: 0; display: flex; align-items: center; gap: 8px;
+    transition: background 100ms, border-color 100ms; white-space: nowrap;
+  }
+  .section-rightmenu button:hover { background: #fafafa; border-color: #999; }
+
+  /* ---- Flow switcher ---- */
+  .flows-accordion {
+    position: absolute;
+    top: 0;
+    right: 16px;
+    width: 180px;
+    background: #fff;
+    border: 1px solid #d9d9d9;
+    z-index: 25;
+  }
+  .flows-head {
+    width: 100%;
+    height: 44px;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    color: #222;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .flows-list {
+    border-top: 1px solid #e5e5e5;
+    padding: 8px 0;
+  }
+  .flow-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 4px 12px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #222;
+  }
+  .flow-item:hover { background: #f5f5f5; }
+  .flow-item.disabled {
+    color: #9a9a9a;
+    cursor: default;
+  }
+  .flow-item.disabled:hover { background: transparent; }
+
+  /* ---- Toast ---- */
+  .toast {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 24px; background: #111; color: #fff; font-size: 13px;
+    padding: 10px 14px; border-radius: 0;
+    display: inline-flex; align-items: center; gap: 16px;
+    z-index: 50; animation: toastIn 160ms ease-out;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  .toast button { background: transparent; border: 0; color: #fff; text-decoration: underline; font-weight: 500; padding: 0; cursor: pointer; }
+
+  /* ---- Shimmer ---- */
+  @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  .shimmer-text {
+    background: linear-gradient(90deg, #eee 0%, #f6f6f6 50%, #eee 100%);
+    background-size: 800px 100%; animation: shimmer 1.2s infinite linear;
+    color: transparent !important; border-radius: 0;
+  }
+
+  /* ---- Animations ---- */
+  .fade-in { animation: fadeIn 220ms ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ---- Variant sublist ---- */
+  .variant-sublist {
+    margin: 4px 0 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+  }
+  .variant-sublist::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: -12px;
+    bottom: 20px;
+    width: 1px;
+    background: #d9d9d9;
+  }
+  .variant-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border: 1px solid #d0d0d0; background: #fff;
+    cursor: pointer; transition: border-color 120ms, background 120ms;
+    margin-left: 18px; position: relative;
+    min-height: 40px;
+  }
+  .variant-card::after {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    width: 10px;
+    height: 1px;
+    background: #d9d9d9;
+  }
+  .variant-card:hover { border-color: #999; }
+  .variant-card.selected { border-color: #111; background: #f8f8f8; }
+  .variant-card .v-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid #b5b5b5;
+    display: grid;
+    place-items: center;
+    color: #3f3f3f;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .variant-card .v-name { font-size: 32px; transform: scale(0.5); transform-origin: left center; margin-right: -120px; white-space: nowrap; color: #222; }
+  .page-card .test-row {
+    padding: 6px 12px; border-top: 1px solid #eee;
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: #6b6b6b;
+  }
+  .page-card .test-row .test-dot { width: 6px; height: 6px; border-radius: 50%; background: #666; }
+  .page-card .test-row.live .test-dot { background: #333; animation: livePulse 1.6s ease-in-out infinite; }
+  @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ============================================================
+// ICONS
+// ============================================================
+const Icon = ({ name, size = 16, stroke = 'currentColor', strokeWidth = 1.5, ...rest }) => {
+  const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke, strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round', ...rest };
+  switch (name) {
+    case 'chevron-right': return <svg {...props}><polyline points="9 18 15 12 9 6"/></svg>;
+    case 'chevron-left': return <svg {...props}><polyline points="15 18 9 12 15 6"/></svg>;
+    case 'chevron-down': return <svg {...props}><polyline points="6 9 12 15 18 9"/></svg>;
+    case 'chevron-up': return <svg {...props}><polyline points="18 15 12 9 6 15"/></svg>;
+    case 'x': return <svg {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case 'help': return <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+    case 'refresh': return <svg {...props}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14"/></svg>;
+    case 'trash': return <svg {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>;
+    case 'plus': return <svg {...props}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+    case 'menu': return <svg {...props}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+    case 'grid': return <svg {...props}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>;
+    case 'design': return <svg {...props}><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>;
+    case 'media': return <svg {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
+    case 'apps': return <svg {...props}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>;
+    case 'settings': return <svg {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+    case 'sparkle': return <svg {...props}><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z"/></svg>;
+    case 'edit': return <svg {...props}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+    case 'undo': return <svg {...props}><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>;
+    case 'redo': return <svg {...props}><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>;
+    case 'cloud': return <svg {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>;
+    case 'mobile': return <svg {...props}><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>;
+    case 'desktop': return <svg {...props}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>;
+    case 'dot-vertical': return <svg {...props}><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>;
+    case 'dot-horizontal': return <svg {...props}><circle cx="12" cy="12" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>;
+    case 'check': return <svg {...props}><polyline points="20 6 9 17 4 12"/></svg>;
+    case 'arrow-right': return <svg {...props}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
+    case 'eye': return <svg {...props}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+    case 'globe': return <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 0 20"/><path d="M12 2a15 15 0 0 0 0 20"/></svg>;
+    case 'sun': return <svg {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.93 19.07l1.41-1.41"/><path d="M17.66 6.34l1.41-1.41"/></svg>;
+    case 'clock': return <svg {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+    case 'arrow-up': return <svg {...props}><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>;
+    case 'arrow-down': return <svg {...props}><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>;
+    case 'square': return <svg {...props}><rect x="3" y="3" width="18" height="18" rx="2"/></svg>;
+    default: return null;
+  }
+};
+
+// ============================================================
+// SUB-TOOLBAR
+// ============================================================
+const SubToolbar = ({ selection }) => {
+  const trailingIcons = [
+    { icon: 'menu', title: 'Outline' },
+    { icon: 'sun', title: 'Theme' },
+    { icon: 'help', title: 'Help' },
+  ];
+  const actions = {
+    none: { items: [
+      { icon: 'sparkle', label: 'Ask Aria', primary: true },
+      { divider: true },
+      { icon: 'grid', label: 'Change Layout' },
+      { divider: true },
+      { icon: 'media', label: 'Replace Background' },
+    ]},
+    text: { items: [
+      { icon: 'sparkle', label: 'Rewrite with AI', primary: true },
+      { divider: true },
+      { label: 'Aa', font: true },
+      { icon: 'edit', label: 'Edit text' },
+      { divider: true },
+      { label: 'B', bold: true },
+      { label: 'I', italic: true },
+      { label: 'U', underline: true },
+      { divider: true },
+      { icon: 'design', label: 'Color' },
+    ]},
+    button: { items: [
+      { icon: 'sparkle', label: 'Improve copy', primary: true },
+      { divider: true },
+      { icon: 'edit', label: 'Edit text' },
+      { divider: true },
+      { icon: 'design', label: 'Fill color' },
+      { label: 'Border' },
+      { label: 'Radius' },
+      { divider: true },
+      { label: 'Link' },
+    ]},
+    image: { items: [
+      { icon: 'sparkle', label: 'Generate with AI', primary: true },
+      { divider: true },
+      { icon: 'media', label: 'Replace' },
+      { label: 'Crop' },
+      { label: 'Filter' },
+      { divider: true },
+      { label: 'Alt text' },
+    ]},
+  };
+  const cfg = actions[selection?.type] || actions.none;
+  return (
+    <div className="sub-toolbar">
+      <button className="add-btn"><Icon name="plus" size={12} /> Add</button>
+      <div className="ctx-actions">
+        {cfg.items.map((it, i) => {
+          if (it.divider) return <span key={'d'+i} className="ctx-divider" />;
+          return (
+            <button key={i} className={'ctx-btn' + (it.primary ? ' primary-action' : '')}
+              style={it.bold ? {fontWeight:700} : it.italic ? {fontStyle:'italic'} : it.underline ? {textDecoration:'underline'} : it.font ? {fontFamily:'Georgia,serif',fontStyle:'italic'} : {}}
+            >
+              {it.icon && <Icon name={it.icon} size={13} />}
+              {it.label}
+            </button>
+          );
+        })}
+        <span className="ctx-divider" />
+        {trailingIcons.map((ic, i) => (
+          <button key={'t'+i} className="ctx-btn icon-only" title={ic.title}>
+            <Icon name={ic.icon} size={14} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PageDropdown = ({ pageId, onChange, onOpenManage }) => {
+  const pages = [
+    { id: 'home', name: 'Home' },
+    { id: 'about', name: 'About Us' },
+    { id: 'donations', name: 'Donations' },
+    { id: 'programs', name: 'Program List' },
+    { id: 'events', name: 'Events' },
+  ];
+  const current = pages.find(p => p.id === pageId);
+  return (
+    <div className="page-dropdown" onClick={(e) => { e.stopPropagation(); onOpenManage && onOpenManage(); }}>
+      <span>Page: {current ? current.name : 'Home'}</span>
+      <Icon name="chevron-down" size={10} />
+    </div>
+  );
+};
+
+// ============================================================
+// SITE PREVIEW
+// ============================================================
+const SitePreview = ({ variant = 'A', selection, onSelect, pageDropdown }) => {
+  const variants = {
+    A: {
+      h1Pre: 'Master Markets,',
+      h1Post: 'Power Your Financials',
+      sub: 'We bridge the financial gap for women through professional courses, live webinars, and a supportive community dedicated to wealth and independence.',
+      cta: 'Start Today',
+    },
+    B: {
+      h1Pre: 'Take Control,',
+      h1Post: 'Build Your Wealth Today',
+      sub: 'Join thousands of women turning market knowledge into financial freedom. Expert-led courses, live coaching, and a community that has your back.',
+      cta: 'Start Free →',
+    },
+  };
+  const v = variants[variant] || variants.A;
+  const isB = variant === 'B';
+  const sel = (id) => selection && selection.id === id;
+  const select = (e, id, type) => { e.stopPropagation(); onSelect && onSelect({ id, type }); };
+  const cls = (id) => 'site-selectable' + (sel(id) ? ' is-selected' : '');
+  return (
+    <div className="browser-frame" data-variant={variant}>
+      <div className="browser-bar">
+        <div className="dots"><span/><span/><span/></div>
+        {pageDropdown}
+        <div style={{flex:1, fontSize:12, color:'#6b6b6b', textAlign:'center'}}>
+          {isB ? 'Variant B preview · ' : ''}womenstockknowledge.net is available! Connect Domain
+        </div>
+        <div className="device-toggle">
+          <button title="Mobile"><Icon name="mobile" size={12} /></button>
+          <button className="active" title="Desktop"><Icon name="desktop" size={12} /></button>
+        </div>
+      </div>
+      <div className="site-page" onClick={() => onSelect && onSelect(null)}>
+        <div className="site-nav-row">
+          <div className="site-brand">Women<br/><span className="sub">Stock Knowledge</span></div>
+          <div className="site-nav">
+            <span>Home</span><span>About Us</span><span>Donations</span>
+            <span>Program List</span><span>Events</span><span>Groups</span>
+          </div>
+          <button
+            className={cls('nav-cta')}
+            style={{padding:'8px 18px', border:'1px solid #888', background:'#fff', fontSize:14}}
+            onClick={(e) => select(e, 'nav-cta', 'button')}
+          >Donate</button>
+        </div>
+        <div className="site-hero">
+          <div className={'site-img-ph ' + cls('hero-img')} onClick={(e) => select(e, 'hero-img', 'image')} />
+          <div>
+            <h1
+              id="target-headline"
+              className={'site-h1 ' + cls('headline')}
+              onClick={(e) => select(e, 'headline', 'text')}
+            >
+              {v.h1Pre}<br/>{v.h1Post}
+            </h1>
+            <p
+              id="target-subhead"
+              className={'site-p ' + cls('subhead')}
+              onClick={(e) => select(e, 'subhead', 'text')}
+            >{v.sub}</p>
+            <button
+              id="target-cta"
+              className={'site-cta-lg ' + cls('cta')}
+              style={isB ? {background:'#111', color:'#fff', borderColor:'#111'} : {}}
+              onClick={(e) => select(e, 'cta', 'button')}
+            >{v.cta}</button>
+          </div>
+        </div>
+        <div className={'site-strip ' + cls('strip')} onClick={(e) => select(e, 'strip', 'text')}>
+          <span>Expert-led courses</span>•<span>Interactive webinars</span>•<span>Supportive global community</span>•<span>Financial literacy for women</span>•<span>Practical wealth</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// PAGES PANEL
+// ============================================================
+const PAGES = [
+  { id: 'home', name: 'Home', section: 'main' },
+  { id: 'about', name: 'About Us', section: 'main' },
+  { id: 'donations', name: 'Donations', section: 'main' },
+  { id: 'programs', name: 'Program List', section: 'other' },
+  { id: 'events', name: 'Events', section: 'other' },
+  { id: 'visitor-page', name: 'Visitor Page', section: 'other' },
+  { id: 'payment-page', name: 'Payment Page', section: 'other' },
+  { id: 'participant-page', name: 'Participant Page', section: 'other' },
+  { id: 'mentorship-hub', name: 'Mentorship Hub', section: 'other' },
+  { id: 'success-stories', name: 'Success Stories', section: 'other' },
+];
+
+const PageCard = ({ p, selectedPageId, onSelectPage, onContextMenu, hasTest, testState, previewVariant, onSelectVariant, isMenuOpen }) => {
+  const isSelected = selectedPageId === p.id;
+  return (
+    <div>
+      <div className={'page-card' + (isSelected ? ' selected' : '')} onClick={() => onSelectPage(p.id)}>
+        <div className="thumb">{hasTest && p.id === 'home' && <span className={'ab-pill' + (testState === 'completed' ? ' completed' : '')}>A/B test</span>}</div>
+        <div className="row">
+          <span>{p.name}</span>
+          <div className="row-right">
+            <button className={'more' + (isMenuOpen ? ' selected' : '')} data-page-id={p.id} onClick={(e) => { e.stopPropagation(); onContextMenu(e, p.id); }} title="More">
+              <Icon name="dot-horizontal" size={18} />
+            </button>
+            {p.id === 'home' ? <span className="home-indicator"><Icon name="home" size={14} /></span> : <span />}
+          </div>
+        </div>
+      </div>
+      {hasTest && (
+        <div className="variant-sublist">
+          <div
+            className={'variant-card' + (isSelected && previewVariant === 'A' ? ' selected' : '')}
+            onClick={(e) => { e.stopPropagation(); onSelectVariant('A'); }}
+          >
+            <span className="v-dot">A</span>
+            <span className="v-name">Original</span>
+          </div>
+          <div
+            className={'variant-card' + (isSelected && previewVariant === 'B' ? ' selected' : '')}
+            onClick={(e) => { e.stopPropagation(); onSelectVariant('B'); }}
+          >
+            <span className="v-dot">B</span>
+            <span className="v-name">Variant B</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PagesPanel = ({ onClose, selectedPageId, onSelectPage, onContextMenu, testState, testPageId, previewVariant, onSelectVariant, activeMenuPageId }) => {
+  const [expanded, setExpanded] = useState({ main: true, other: true });
+  const hasTestFor = (pid) => pid === 'home' && testPageId === pid && (testState === 'live' || testState === 'completed');
+  const renderCard = (p) => (
+    <PageCard
+      key={p.id} p={p}
+      selectedPageId={selectedPageId} onSelectPage={onSelectPage}
+      onContextMenu={onContextMenu}
+      hasTest={hasTestFor(p.id)} testState={testState}
+      previewVariant={previewVariant} onSelectVariant={onSelectVariant}
+      isMenuOpen={activeMenuPageId === p.id}
+    />
+  );
+  return (
+    <div className="floating-panel narrow">
+      <div className="pages-head" style={{paddingBottom:8}}>
+        <h2><span>Site Pages ({PAGES.length})</span><Icon name="chevron-down" size={12} /></h2>
+        <div style={{display:'flex'}}>
+          <button className="icon-btn" title="Grid view"><Icon name="grid" size={14} /></button>
+          <button className="icon-btn" onClick={onClose} title="Close"><Icon name="x" size={14} /></button>
+        </div>
+      </div>
+      <div className="pages-section">
+        <div className="pages-section-head" onClick={() => setExpanded(e => ({...e, main: !e.main}))}>
+          <span>Main pages (5)</span>
+          <Icon name={expanded.main ? 'chevron-up' : 'chevron-down'} size={14} />
+        </div>
+      </div>
+      <div className="pages-cards">
+        {expanded.main && PAGES.filter(p => p.section === 'main').map(renderCard)}
+        {expanded.main && (
+          <div style={{paddingTop:8, paddingBottom:8}}>
+            <div className="pages-section-head" onClick={() => setExpanded(e => ({...e, other: !e.other}))}>
+              <span>Programs pages (7)</span>
+              <Icon name={expanded.other ? 'chevron-up' : 'chevron-down'} size={14} />
+            </div>
+          </div>
+        )}
+        {expanded.other && PAGES.filter(p => p.section === 'other').map(renderCard)}
+      </div>
+      <div className="pages-foot">
+        <button className="add"><Icon name="plus" size={14} style={{marginRight:6, verticalAlign:'-2px'}} />Add Page</button>
+        <button className="manage">Manage Pages</button>
+      </div>
+    </div>
+  );
+};
+
+const ContextMenu = ({ x, y, onAction, onClose, isTestLive }) => {
+  const ref = useRef();
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const top = Math.min(y, window.innerHeight - 200);
+  const left = Math.min(x, window.innerWidth - 200);
+  return (
+    <div className="ctx-menu" style={{ top, left }} ref={ref}>
+      <button className="ctx-item" onClick={() => onAction('rename')}><span>Rename</span></button>
+      <button className="ctx-item" onClick={() => onAction('duplicate')}><span>Duplicate</span></button>
+      <button className="ctx-item" onClick={() => onAction('delete')}><span>Delete</span></button>
+      <div className="sep" />
+      <button className="ctx-item highlight" onClick={() => onAction(isTestLive ? 'manage-ab-test' : 'ab-test')}>
+        <span>{isTestLive ? 'Manage A/B test' : 'Create A/B test'}</span>
+        {!isTestLive && <span className="new">New</span>}
+      </button>
+      <button className="ctx-item" onClick={() => onAction('seo')}>
+        <span>SEO and accessibility</span>
+        <Icon name="chevron-right" size={12} />
+      </button>
+      <button className="ctx-item" onClick={() => onAction('settings')}><span>Settings</span></button>
+    </div>
+  );
+};
+
+const ManageAbTestPanel = ({ onClose, onSelectVariant, selectedVariant = 'B', onOpenResults }) => {
+  return (
+    <div className="ab-manage-panel">
+      <div className="abp-head">
+        <div className="abp-head-left">
+          <h3 className="abp-title">A/B Test</h3>
+          <div className="abp-sub">Drive more clicks to CTA</div>
+        </div>
+        <div className="abp-head-actions">
+          <button className="abp-stop">Stop test</button>
+          <button className="abp-icon" title="More"><Icon name="dot-vertical" size={14} /></button>
+          <button className="abp-icon" title="Close" onClick={onClose}><Icon name="x" size={14} /></button>
+        </div>
+      </div>
+
+      <div className="abp-body">
+        <div className="abp-lines">
+          <div className="line">Status: <span className="pill-live">Live</span></div>
+          <div className="line">Duration: 1 / 14 days</div>
+          <div className="line">Main metric: Button clicks</div>
+        </div>
+        <button className="abp-more">View more &gt;</button>
+      </div>
+
+      <div className="abp-sec">
+        <h4>Test Variants</h4>
+        <div className="s">Your test is live! here are your variants and main stats.</div>
+
+        <div className={'abp-variant' + (selectedVariant === 'A' ? ' selected' : '')} onClick={() => onSelectVariant && onSelectVariant('A')} style={{cursor:'pointer'}}>
+          <div>
+            <div className="l1"><span className="dot">A</span><span>Variant A (Original)</span></div>
+            <div className="meta">1,042 &nbsp;|&nbsp; 86 clicks</div>
+          </div>
+          <Icon name="eye" size={16} />
+        </div>
+
+        <div className={'abp-variant' + (selectedVariant === 'B' ? ' selected' : '')} onClick={() => onSelectVariant && onSelectVariant('B')} style={{cursor:'pointer', marginTop:8}}>
+          <div>
+            <div className="l1"><span className="dot">B</span><span>Variant B</span><span className="best">Best perform</span></div>
+            <div className="meta">1,042 &nbsp;|&nbsp; 106 clicks</div>
+          </div>
+          <Icon name="eye" size={16} />
+        </div>
+      </div>
+
+      <div className="abp-sec grow" style={{paddingTop:16, paddingBottom:12}}>
+        <h4>Ongoing Results</h4>
+        <div className="s">We're tracking how visitors interact with each variants. The results are not final.</div>
+        <div className="abp-kpis">
+          <div className="abp-kpi"><div className="k">Visitors</div><div className="v">2,254</div></div>
+          <div className="abp-kpi"><div className="k">Button Clicks</div><div className="v">248</div></div>
+        </div>
+        <div className="abp-chart">
+          <div className="t"><span>Button clicks over time</span><span className="t-legend"><span><span className="dot" style={{background:'#111'}}></span>Variant A</span><span><span className="dot" style={{background:'#999'}}></span>Variant B</span></span></div>
+          <svg className="chart-svg" viewBox="0 0 340 160" preserveAspectRatio="none" aria-hidden="true">
+            {/* Y-axis labels */}
+            <text x="18" y="14" textAnchor="end" fontSize="9" fill="#aaa">25</text>
+            <text x="18" y="46" textAnchor="end" fontSize="9" fill="#aaa">20</text>
+            <text x="18" y="78" textAnchor="end" fontSize="9" fill="#aaa">15</text>
+            <text x="18" y="110" textAnchor="end" fontSize="9" fill="#aaa">10</text>
+            <text x="18" y="130" textAnchor="end" fontSize="9" fill="#aaa">5</text>
+            <text x="18" y="148" textAnchor="end" fontSize="9" fill="#aaa">0</text>
+            {/* Grid lines */}
+            <line x1="22" y1="10" x2="330" y2="10" stroke="#efefef"/>
+            <line x1="22" y1="42" x2="330" y2="42" stroke="#efefef"/>
+            <line x1="22" y1="74" x2="330" y2="74" stroke="#efefef"/>
+            <line x1="22" y1="106" x2="330" y2="106" stroke="#efefef"/>
+            <line x1="22" y1="126" x2="330" y2="126" stroke="#efefef"/>
+            <line x1="22" y1="144" x2="330" y2="144" stroke="#ddd"/>
+            {/* Vertical axis */}
+            <line x1="22" y1="10" x2="22" y2="144" stroke="#ddd"/>
+            {/* X-axis labels */}
+            <text x="22" y="156" textAnchor="start" fontSize="9" fill="#aaa">12:00</text>
+            <text x="114" y="156" textAnchor="middle" fontSize="9" fill="#aaa">14:00</text>
+            <text x="220" y="156" textAnchor="middle" fontSize="9" fill="#aaa">16:00</text>
+            <text x="330" y="156" textAnchor="end" fontSize="9" fill="#aaa">18:00</text>
+            {/* Variant A — dark, higher performer */}
+            <polyline points="22,126 114,88 168,48 220,68 280,58 330,65" fill="none" stroke="#111" strokeWidth="2"/>
+            {/* Variant B — lighter, lower */}
+            <polyline points="22,136 114,124 168,116 220,128 280,138 330,140" fill="none" stroke="#bbb" strokeWidth="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <div className="abp-foot">
+        <button onClick={onOpenResults}>See full analytics <Icon name="arrow-up" size={12} style={{transform:'rotate(45deg)', verticalAlign:'-1px'}} /></button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// WIZARD STEP 1 — Goal
+// ============================================================
+const SUGGESTIONS = ['More clicks', 'Boost sign-ups', 'Higher engagement', 'Lower bounce rate'];
+const DEFAULT_GOAL_PROMPT = 'Increase clicks on the main CTA by testing improved button placement and more compelling, action-oriented copy.';
+
+const Step1Goal = ({ goal, setGoal, enhancing, onEnhance }) => {
+  const max = 2000;
+  const taRef = useRef();
+  const applyDefaultGoal = () => {
+    if (!goal.trim()) setGoal(DEFAULT_GOAL_PROMPT);
+  };
+  const addSuggestion = (text) => {
+    if (text === 'More clicks' && !goal.trim()) {
+      setGoal(DEFAULT_GOAL_PROMPT);
+      setTimeout(() => taRef.current && taRef.current.focus(), 50);
+      return;
+    }
+    const next = goal ? goal + (goal.endsWith(' ') ? '' : ' ') + text : text;
+    setGoal(next.slice(0, max));
+    setTimeout(() => taRef.current && taRef.current.focus(), 50);
+  };
+  return (
+    <div className="fade-in" style={{padding:'32px 24px 24px'}}>
+      <div style={{textAlign:'center', marginBottom:24}}>
+        <div style={{fontSize:17, fontWeight:600, color:'#111', marginBottom:8, lineHeight:1.3}}>Describe your goal</div>
+        <div style={{fontSize:13, color:'#999', lineHeight:1.5}}>Describe what you want to improve in this page, or pick a quick goal below.</div>
+      </div>
+      <div className="textarea-shell">
+        <textarea
+          ref={taRef}
+          value={goal}
+          onChange={(e) => setGoal(e.target.value.slice(0, max))}
+          onFocus={applyDefaultGoal}
+          placeholder="e.g, I want more visitors to click my signup button. I think a stronger headline and moving the button higher on the page might help."
+          rows={5}
+          disabled={enhancing}
+          style={enhancing ? {opacity:0.5} : {}}
+        />
+        <div className="enhance-row">
+          <button
+            className={'enhance-btn' + (goal.length > 10 ? ' active' : '')}
+            disabled={goal.length < 10 || enhancing}
+            onClick={onEnhance}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+              <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z"/>
+            </svg>
+            {enhancing ? 'Enhancing…' : 'Enhance prompt'}
+          </button>
+          <button className="mic-btn" title="Voice input">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="suggestion-chips">
+        {SUGGESTIONS.map(s => <button key={s} className="chip" onClick={() => addSuggestion(s)}>{s}</button>)}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// WIZARD STEP 2 — Settings (redesigned to match reference)
+// ============================================================
+const Step2Outline = ({ outline, setOutline }) => {
+  const [advOpen, setAdvOpen] = useState(false);
+  const upd = (k, v) => setOutline(prev => ({ ...prev, [k]: v }));
+
+  return (
+    <div className="step2-wrap fade-in">
+      {/* AI-generated banner */}
+      <div className="step2-banner">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#111" stroke="none">
+          <path d="M12 2l2.09 6.26L21 9.27l-5 4.87L17.18 21 12 17.77 6.82 21 8 14.14 3 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <span>AI-generated settings based on your goal. Adjust as needed. <strong>Edit with AI</strong></span>
+      </div>
+
+      {/* Details */}
+      <div className="step2-section">
+        <div className="step2-section-title">Details</div>
+        <div className="step2-field-gap">
+          <div className="step2-label">Name</div>
+          <input
+            className="step2-field"
+            type="text"
+            value={outline.testName || ''}
+            onChange={e => upd('testName', e.target.value)}
+            placeholder="Test name"
+          />
+        </div>
+        <div className="step2-field-gap">
+          <div className="step2-label">Description (optional)</div>
+          <input
+            className="step2-field"
+            type="text"
+            value={outline.description || ''}
+            onChange={e => upd('description', e.target.value)}
+            placeholder="Short description"
+          />
+        </div>
+        <div>
+          <div className="step2-label">Duration</div>
+          <div className="step2-select-wrap">
+            <select value={outline.duration || '14 days'} onChange={e => upd('duration', e.target.value)}>
+              <option value="7 days">7 days</option>
+              <option value="14 days">14 days</option>
+              <option value="30 days">30 days</option>
+            </select>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <hr className="step2-divider" />
+
+      {/* Main metric */}
+      <div className="step2-section">
+        <div className="step2-section-title">Main metric</div>
+        <div className="metric-subtitle">Primary success metric. Other signals are still collected.</div>
+        <div className="metric-chips">
+          {['Button clicks', 'Session duration', 'Form submits'].map(m => (
+            <button
+              key={m}
+              className={'metric-chip' + (outline.mainMetric === m ? ' selected' : '')}
+              onClick={() => upd('mainMetric', m)}
+            >{m}</button>
+          ))}
+        </div>
+      </div>
+
+      <hr className="step2-divider" />
+
+      {/* Advanced settings — collapsible */}
+      <div className="step2-advanced-row" onClick={() => setAdvOpen(o => !o)}>
+        <div>
+          <div className="step2-adv-title">Advanced settings</div>
+          <div className="step2-adv-sub">Exposure, Target audience, Traffic split</div>
+        </div>
+        <div className="step2-adv-arrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {advOpen ? <polyline points="18 15 12 9 6 15"/> : <polyline points="9 18 15 12 9 6"/>}
+          </svg>
+        </div>
+      </div>
+      {advOpen && (
+        <div className="adv-body fade-in">
+          {/* Exposure */}
+          <div className="adv-section">
+            <div className="adv-section-title">Exposure</div>
+            <div className="adv-section-sub">Percentage of visitors included in the test.</div>
+            <div className="adv-exposure-row">
+              <span className="adv-exposure-val">{outline.exposure ?? 100}%</span>
+              <input type="range" min={10} max={100} step={5} value={outline.exposure ?? 100}
+                onChange={e => upd('exposure', parseInt(e.target.value))} />
+            </div>
+          </div>
+          {/* Target audience */}
+          <div className="adv-section">
+            <div className="adv-section-title">Target audience</div>
+            <div className="adv-section-sub">Target this test to specific visitors.</div>
+            <div className="adv-sublabel">Device</div>
+            <div className="adv-btn-group">
+              {[
+                { val: 'all', label: 'All', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><rect x="14" y="10" width="5" height="7" rx="1"/></svg> },
+                { val: 'desktop', label: 'Desktop', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> },
+                { val: 'mobile', label: 'Mobile', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> },
+              ].map(({ val, label, icon }) => (
+                <button key={val} className={outline.device === val ? 'active' : ''} onClick={() => upd('device', val)}>
+                  {icon}{label}
+                </button>
+              ))}
+            </div>
+            <div className="adv-sublabel">Visitor type</div>
+            <div className="adv-btn-group">
+              {[
+                { val: 'all', label: 'All', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="18" cy="8" r="2"/><path d="M21 21v-1a3 3 0 0 0-3-3h-1"/></svg> },
+                { val: 'new', label: 'New', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="7" r="3"/><path d="M4 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg> },
+                { val: 'returning', label: 'Returning', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="7" r="3"/><path d="M4 21v-2a4 4 0 0 1 4-4h5"/><polyline points="17 17 20 20 17 23"/><path d="M20 20a4 4 0 1 0-4-4"/></svg> },
+              ].map(({ val, label, icon }) => (
+                <button key={val} className={outline.visitorType === val ? 'active' : ''} onClick={() => upd('visitorType', val)}>
+                  {icon}{label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Traffic split */}
+          <div className="adv-section">
+            <div className="adv-section-title">Traffic split</div>
+            <div className="adv-section-sub">How traffic is distributed across your variants.</div>
+            <div className="adv-split-row">
+              <span className="adv-split-label"><span className="var-dot">A</span>{outline.splitA ?? 50}%</span>
+              <input type="range" min={10} max={90} step={10} value={outline.splitA ?? 50}
+                onChange={e => upd('splitA', parseInt(e.target.value))} />
+            </div>
+            <div className="adv-split-row">
+              <span className="adv-split-label"><span className="var-dot">B</span>{100 - (outline.splitA ?? 50)}%</span>
+              <input type="range" min={10} max={90} step={10} value={100 - (outline.splitA ?? 50)} readOnly />
+            </div>
+          </div>
+        </div>
+      )}
+      <hr className="step2-divider" style={{marginBottom:0}} />
+    </div>
+  );
+};
+
+// ============================================================
+// WIZARD STEP 3 — Variant B
+// ============================================================
+const DEFAULT_CHANGES = [
+  { id: 'c1', title: 'Headline', kind: 'Text update', thumb: 'headline', targetId: 'target-headline', a: 'Master Markets, Power Your Financials', b: 'Take Control, Build Your Wealth Today' },
+  { id: 'c2', title: 'CTA Button', kind: 'Text update', thumb: 'button', targetId: 'target-cta', a: 'Start Today', b: 'Start Free →' },
+];
+const ALT_HEADLINES = ['Take Control, Build Your Wealth Today', 'Invest Smarter, Live Freer', 'Your Money, Your Markets, Your Future', 'Wealth-building Built for Women', 'From First Trade to Financial Freedom'];
+const ALT_CTAS = ['Start Free →', 'Get Started Now', 'Join the Community', 'Try It Free', 'Begin Your Journey'];
+
+const Step3Variants = ({ changes, setChanges, onFocusChange, focusedChangeId, activeVariant, onSelectVariant }) => {
+  const visibleChanges = changes.slice(0, 2);
+  const [refreshing, setRefreshing] = useState({});
+
+  const refresh = (id) => {
+    setRefreshing(r => ({...r, [id]: true}));
+    setTimeout(() => {
+      setChanges(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        if (c.title === 'Headline') return {...c, b: ALT_HEADLINES[Math.floor(Math.random()*ALT_HEADLINES.length)]};
+        if (c.title === 'CTA Button') return {...c, b: ALT_CTAS[Math.floor(Math.random()*ALT_CTAS.length)]};
+        return c;
+      }));
+      setRefreshing(r => ({...r, [id]: false}));
+    }, 900);
+  };
+
+  const remove = (id) => {
+    setChanges(prev => prev.map(c => c.id === id ? {...c, _removing: true} : c));
+    setTimeout(() => setChanges(prev => prev.filter(c => c.id !== id)), 240);
+  };
+
+  return (
+    <div className="changes-list fade-in">
+      <div className="step3-banner">
+        <span className="spark"><Icon name="sparkle" size={14} /></span>
+        <div>AI-generated variant B with changes based on your set up. <strong>Edit with AI</strong></div>
+      </div>
+
+      <div className="step3-section">
+        <h4>Test Variants</h4>
+        <div className="sub">Click a variant to view and edit it on the canvas.</div>
+        <div className="variant-picker">
+          <div className={'variant-option' + (activeVariant === 'A' ? ' selected' : '')} onClick={() => onSelectVariant && onSelectVariant('A')} style={{cursor:'pointer'}}>
+            <div className="left">
+              <span className="dot">A</span>
+              <span className="label">Variant A (Original)</span>
+            </div>
+            <button className="edit" title="Edit Variant A"><Icon name="edit" size={13} /></button>
+          </div>
+          <div className={'variant-option' + (activeVariant === 'B' ? ' selected' : '')} onClick={() => onSelectVariant && onSelectVariant('B')} style={{cursor:'pointer'}}>
+            <div className="left">
+              <span className="dot">B</span>
+              <span className="label">Variant B</span>
+            </div>
+            <button className="edit" title="Edit Variant B"><Icon name="edit" size={13} /></button>
+          </div>
+        </div>
+      </div>
+
+      <div className="changes-review">
+        <h4 className="title">Changes review ({visibleChanges.length})</h4>
+        <div className="sub">Review the generated changes in variant B before finishing set up.</div>
+      </div>
+
+      {visibleChanges.length === 0 && (
+        <div style={{textAlign:'center', padding:'28px 16px', color:'#6b6b6b', fontSize:13, border:'1px dashed #d9d9d9'}}>
+          No changes left. Variant B is now identical to A.
+        </div>
+      )}
+
+      <div className="changes-stack">
+        {visibleChanges.map(c => (
+          <div
+            key={c.id}
+            className={'change-card' + (c._removing ? ' removing' : '') + (focusedChangeId === c.id ? ' focused' : '')}
+            onClick={(e) => {
+              if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+              onFocusChange && onFocusChange(c);
+            }}
+            style={{cursor:'pointer'}}
+          >
+            <div className="change-card-head">
+              <div>
+                <div className="h">{c.title}</div>
+                <div className="kind"><Icon name="edit" size={12} /> {c.kind}</div>
+              </div>
+              <div className="change-card-actions">
+                <span className="ai-pill"><Icon name="sparkle" size={10} />AI</span>
+                <button className={'icon-action' + (refreshing[c.id] ? ' refreshing' : '')} onClick={() => refresh(c.id)} title="Re-roll Variant B suggestion" disabled={refreshing[c.id]}>
+                  <Icon name="refresh" size={14} />
+                </button>
+                <button className="icon-action" onClick={() => remove(c.id)} title="Delete this change"><Icon name="trash" size={14} /></button>
+              </div>
+            </div>
+
+            <div className="variant-rows">
+              <div className="row a">
+                <span className="bullet">•</span>
+                <div>
+                  <span className="prefix">A:</span>
+                  <span className="text">{c.a}</span>
+                </div>
+              </div>
+              <div className="row b">
+                <span className="bullet">•</span>
+                <div>
+                  <span className="prefix">B:</span>
+                  <span className="text">{c.b}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// WIZARD
+// ============================================================
+const STEP_LABELS = ['Goal', 'Settings', 'Variant B'];
+
+const LOADER_MESSAGES = [
+  "Analyzing 'Home' page...",
+  "Reading your goal...",
+  "Generating test settings...",
+];
+
+const Wizard = ({ onClose, onStart, previewVariant, setPreviewVariant, focusedChangeId, setFocusedChangeId, onVariantGeneratingChange }) => {
+  const [step, setStep] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingMode, setGeneratingMode] = useState('settings');
+  const [loaderMsg, setLoaderMsg] = useState(LOADER_MESSAGES[0]);
+  const [goal, setGoal] = useState('');
+  const [enhancing, setEnhancing] = useState(false);
+  const [outline, setOutline] = useState({
+    testName: 'Drive more clicks to CTA',
+    description: "Improve 'start today' button",
+    mainMetric: 'Button clicks',
+    duration: '14 days',
+    audience: 'all',
+    exposure: 100,
+    split: '50/50',
+    device: 'all',
+    visitorType: 'all',
+    splitA: 50,
+  });
+  const [changes, setChanges] = useState(DEFAULT_CHANGES);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (step === 2) setPreviewVariant('B');
+    else setPreviewVariant('A');
+  }, [step]);
+
+  useEffect(() => {
+    if (!onVariantGeneratingChange) return;
+    onVariantGeneratingChange(isGenerating && generatingMode === 'variant-b');
+  }, [isGenerating, generatingMode, onVariantGeneratingChange]);
+
+  useEffect(() => () => {
+    if (onVariantGeneratingChange) onVariantGeneratingChange(false);
+  }, [onVariantGeneratingChange]);
+
+  const enhance = async () => {
+    setEnhancing(true);
+    try {
+      if (window.claude && window.claude.complete) {
+        const out = await window.claude.complete(`Rewrite the following A/B-test goal so it's clearer, more specific, and actionable. Keep it under 280 characters. Only return the rewritten goal text — no preamble or quotes.\n\nGoal: "${goal}"`);
+        if (out && typeof out === 'string') setGoal(out.trim().replace(/^["']|["']$/g, '').slice(0, 2000));
+      } else {
+        await new Promise(r => setTimeout(r, 800));
+        setGoal(prev => prev + ' (Specifically: increase clickthrough on the primary hero CTA by 15% over 14 days.)');
+      }
+    } catch(e) {
+      setGoal(prev => prev + ' (Specifically: increase clickthrough on the primary hero CTA by 15% over 14 days.)');
+    }
+    setEnhancing(false);
+  };
+
+  const goalValid = goal.trim().length >= 10;
+  const outlineValid = outline.testName && outline.mainMetric && outline.duration;
+  const canNext = (step === 0 && goalValid) || (step === 1 && outlineValid) || step === 2;
+
+  const next = () => {
+    if (!canNext) return;
+    if (step === 0) {
+      // Show loader before advancing to settings
+      setGeneratingMode('settings');
+      setIsGenerating(true);
+      let msgIdx = 0;
+      const msgTimer = setInterval(() => {
+        msgIdx = (msgIdx + 1) % LOADER_MESSAGES.length;
+        setLoaderMsg(LOADER_MESSAGES[msgIdx]);
+      }, 800);
+      setTimeout(() => {
+        clearInterval(msgTimer);
+        setIsGenerating(false);
+        setLoaderMsg(LOADER_MESSAGES[0]);
+        setStep(1);
+      }, 2200);
+    } else if (step < 2) {
+      // Show loader before advancing to Variant B
+      setGeneratingMode('variant-b');
+      setLoaderMsg('Updating main button style...');
+      setPreviewVariant('B');
+      setIsGenerating(true);
+      setTimeout(() => {
+        setIsGenerating(false);
+        setStep(2);
+      }, 2200);
+    } else {
+      onStart({ goal, outline, changes });
+    }
+  };
+  const back = () => {
+    if (isGenerating) return;
+    if (step === 0) onClose(); else setStep(step - 1);
+  };
+
+  return (
+    <div className="floating-panel">
+      <div className="panel-h">
+        <div>
+          <div className="title">Create A/B Test</div>
+          <div className="subtitle">Test page variants to find the best performer</div>
+        </div>
+        <div className="actions">
+          <button className="icon-btn" title="Help"><Icon name="help" size={16} /></button>
+          <button className="icon-btn" title="Close" onClick={onClose}><Icon name="x" size={16} /></button>
+        </div>
+      </div>
+      <div className="stepper">
+        {STEP_LABELS.map((label, i) => (
+          <React.Fragment key={i}>
+            <button
+              className={i === step ? 'active' : (i < step ? 'done' : '')}
+              disabled={i > step}
+              onClick={() => i <= step && setStep(i)}
+            >
+              {label}
+            </button>
+            {i < STEP_LABELS.length - 1 && (
+              <span className="sep">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </span>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <div className={'panel-body' + (!isGenerating && step === 2 ? ' variant-b-content-panel' : '')}>
+        {isGenerating && (
+          <div className="gen-loader">
+            <div className="gen-loader-title">
+              {generatingMode === 'variant-b' ? 'Generating Variant B with AI' : 'Generating Test Settings'}
+            </div>
+            <div className="gen-loader-bar"><div className="gen-loader-bar-fill" key={Date.now()} /></div>
+            <div className="gen-loader-sub">
+              {generatingMode === 'variant-b' ? 'Updating main button style...' : loaderMsg}
+            </div>
+          </div>
+        )}
+        {!isGenerating && step === 0 && <Step1Goal goal={goal} setGoal={setGoal} enhancing={enhancing} onEnhance={enhance} />}
+        {!isGenerating && step === 1 && <Step2Outline outline={outline} setOutline={setOutline} />}
+        {!isGenerating && step === 2 && (
+          <Step3Variants
+            changes={changes}
+            setChanges={setChanges}
+            focusedChangeId={focusedChangeId}
+            activeVariant={previewVariant}
+            onSelectVariant={setPreviewVariant}
+            onFocusChange={(c) => {
+              setFocusedChangeId(c.id);
+              const el = document.getElementById(c.targetId);
+              if (el) {
+                const canvas = document.querySelector('.canvas-area');
+                if (canvas) {
+                  const elRect = el.getBoundingClientRect();
+                  const canvasRect = canvas.getBoundingClientRect();
+                  const offset = elRect.top - canvasRect.top + canvas.scrollTop - canvasRect.height/2 + elRect.height/2;
+                  canvas.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+                }
+                el.classList.add('target-focus');
+                setTimeout(() => el.classList.remove('target-focus'), 2400);
+              }
+            }}
+          />
+        )}
+      </div>
+      <div className="panel-foot">
+        {(step === 0 || step === 1) ? (
+          <>
+            {step === 0 ? (
+              <button
+                className={'generate-btn' + ((!canNext || isGenerating) ? ' disabled' : '')}
+                onClick={next}
+                disabled={!canNext || isGenerating}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                  <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z"/>
+                </svg>
+                Generate settings
+              </button>
+            ) : (
+              <div className="row">
+                <button className="back-btn" onClick={back} disabled={isGenerating}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  {' '}Back
+                </button>
+                <button
+                  className={'generate-btn inline' + ((!canNext || isGenerating) ? ' disabled' : '')}
+                  onClick={next}
+                  disabled={!canNext || isGenerating}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                    <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z"/>
+                  </svg>
+                  Generate variant B
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="row">
+            <button className="back-btn" onClick={back}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              {' '}Back
+            </button>
+            <button className={'next-btn' + (!canNext ? ' disabled' : '')} onClick={next} disabled={!canNext}>
+              Finish Set Up
+            </button>
+          </div>
+        )}
+        <div className="disclaimer">AI can make mistakes. Always double check the results.</div>
+      </div>
+      {toast && (
+        <div className="toast">
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)}>Dismiss</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// APP
+// ============================================================
+const App = () => {
+  const defaultTestData = useMemo(() => ({
+    goal: 'Drive more clicks to CTA',
+    outline: {
+      testName: 'Drive more clicks to CTA',
+      duration: '14 days',
+      mainMetric: 'Button clicks',
+      exposure: 100,
+      split: 'Automatic'
+    }
+  }), []);
+
+  const [showPages, setShowPages] = useState(true);
+  const [showWizard, setShowWizard] = useState(false);
+  const [selectedPageId, setSelectedPageId] = useState('home');
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [previewVariant, setPreviewVariant] = useState('A');
+  const [toast, setToast] = useState(null);
+  const [focusedChangeId, setFocusedChangeId] = useState(null);
+  const [selection, setSelection] = useState(null);
+  const [testState, setTestState] = useState('idle');
+  const [pendingTest, setPendingTest] = useState(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showWinnerModal, setShowWinnerModal] = useState(false);
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [showApplyWinnerModal, setShowApplyWinnerModal] = useState(false);
+  const [showReadyBanner, setShowReadyBanner] = useState(false);
+  const [isVariantGenerating, setIsVariantGenerating] = useState(false);
+  const [showManagePanel, setShowManagePanel] = useState(false);
+  const [liveBannerPos, setLiveBannerPos] = useState(null);
+  const [dragState, setDragState] = useState(null);
+  const [flowsOpen, setFlowsOpen] = useState(false);
+
+  const showToast = (msg, ms = 2000) => {
+    setToast({ msg });
+    setTimeout(() => setToast(null), ms);
+  };
+
+  const handleContextMenu = (e, pageId) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setCtxMenu({ x: rect.left, y: rect.bottom + 4, pageId });
+  };
+
+  const openMenuForPage = (pageId) => {
+    const btn = document.querySelector(`.page-card .more[data-page-id="${pageId}"]`);
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setCtxMenu({ x: rect.left, y: rect.bottom + 4, pageId });
+  };
+
+  const handleCtxAction = (action) => {
+    setCtxMenu(null);
+    if (action === 'ab-test') {
+      setShowWizard(true);
+      setShowPages(false);
+      setShowManagePanel(false);
+    } else if (action === 'manage-ab-test') {
+      setShowManagePanel(true);
+      setShowWizard(false);
+      setShowPages(false);
+    } else {
+      showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} (demo)`);
+    }
+  };
+
+  const onWizardStart = (data) => {
+    setPendingTest(data);
+    setTestState('pending-publish');
+    setShowReadyBanner(false);
+    setShowPublishModal(true);
+  };
+
+  const saveForLater = () => {
+    setShowPublishModal(false);
+    setShowWizard(false);
+    setShowPages(true);
+    setPreviewVariant('A');
+    setShowReadyBanner(true);
+  };
+
+  const doPublish = async () => {
+    setTestState('publishing');
+    await new Promise(r => setTimeout(r, 1600));
+    setTestState('live');
+    setShowReadyBanner(false);
+    setShowPublishModal(false);
+    setShowWizard(false);
+    setShowPages(true);
+    setPreviewVariant('A');
+    setShowSuccessModal(true);
+    setLiveBannerPos(null);
+  };
+
+  useEffect(() => {
+    if (!dragState) return;
+    const onMove = (e) => {
+      const canvas = document.querySelector('.canvas-area');
+      if (!canvas) return;
+      const r = canvas.getBoundingClientRect();
+      const nextX = Math.max(8, Math.min(r.width - 280, e.clientX - r.left - dragState.offsetX));
+      const nextY = Math.max(52, Math.min(r.height - 52, e.clientY - r.top - dragState.offsetY));
+      setLiveBannerPos({ x: nextX, y: nextY });
+    };
+    const onUp = () => setDragState(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragState]);
+
+  const openFlow1 = () => {
+    setFlowsOpen(false);
+    setShowWizard(false);
+    setShowPages(true);
+    setShowManagePanel(false);
+    setShowPublishModal(false);
+    setShowSuccessModal(false);
+    setShowWinnerModal(false);
+    setShowResultsModal(false);
+    setShowReadyBanner(false);
+    setSelection(null);
+    setFocusedChangeId(null);
+    setPreviewVariant('A');
+    setSelectedPageId('home');
+    setPendingTest(null);
+    setTestState('idle');
+    setCtxMenu(null);
+    setTimeout(() => openMenuForPage('home'), 0);
+  };
+
+  const openFlow2 = () => {
+    setFlowsOpen(false);
+    setShowWizard(false);
+    setShowPages(true);
+    setShowManagePanel(false);
+    setShowPublishModal(false);
+    setShowSuccessModal(false);
+    setShowWinnerModal(false);
+    setShowResultsModal(false);
+    setShowReadyBanner(false);
+    setSelection(null);
+    setFocusedChangeId(null);
+    setPreviewVariant('A');
+    setSelectedPageId('home');
+    setPendingTest(defaultTestData);
+    setTestState('live');
+    setCtxMenu(null);
+    setLiveBannerPos(null);
+  };
+
+  const openFlow3 = () => {
+    setFlowsOpen(false);
+    setShowWizard(false);
+    setShowPages(true);
+    setShowManagePanel(false);
+    setShowPublishModal(false);
+    setShowSuccessModal(false);
+    setShowWinnerModal(true);
+    setShowResultsModal(false);
+    setShowReadyBanner(false);
+    setSelection(null);
+    setFocusedChangeId(null);
+    setPreviewVariant('B');
+    setSelectedPageId('home');
+    setPendingTest(defaultTestData);
+    setTestState('completed');
+    setCtxMenu(null);
+    setLiveBannerPos(null);
+  };
+
+  const applyWinnerAndPublish = () => {
+    setShowWinnerModal(false);
+    setShowResultsModal(false);
+    setShowManagePanel(false);
+    setCtxMenu(null);
+    setShowPages(true);
+    setTestState('idle');
+    setPendingTest(null);
+    setPreviewVariant('B');
+    setSelectedPageId('home');
+    setShowSuccessModal(true);
+  };
+
+  const openResultsView = () => {
+    setShowWinnerModal(false);
+    setShowResultsModal(true);
+    setShowManagePanel(false);
+  };
+
+  useEffect(() => {
+    if (testState !== 'completed') return;
+    setLiveBannerPos(null);
+    setDragState(null);
+  }, [testState]);
+
+  return (
+    <>
+      {/* Topbar */}
+      <div className="topbar">
+        <div className="topbar-logo">
+          <span className="mark">P</span>
+          <span style={{fontWeight:600}}>Pageflow</span>
+          <Icon name="chevron-down" size={12} />
+        </div>
+        <div className="topbar-site">
+          <span className="avatar">S</span>
+          <span>Women in stocks</span>
+          <Icon name="chevron-down" size={12} />
+        </div>
+        <div className="topbar-nav">
+          <button>My Events <Icon name="chevron-down" size={12}/></button>
+          <button>Brand <Icon name="chevron-down" size={12}/></button>
+        </div>
+        <div className="topbar-fit">Fit (100%) <Icon name="chevron-down" size={11} style={{verticalAlign:'-1px'}} /></div>
+        <div className="topbar-actions">
+          <button className="ghost-btn" title="Undo"><Icon name="undo" size={14} /></button>
+          <button className="ghost-btn" title="Redo"><Icon name="redo" size={14} /></button>
+          <button className="ghost-btn" title="Saved"><Icon name="cloud" size={14} /></button>
+          <span className="pill">50% off Upgrade</span>
+          <button className="ghost-btn">Preview</button>
+          <button
+            className={'primary-btn' + (testState === 'pending-publish' ? ' attention' : '')}
+            onClick={() => testState === 'pending-publish' && setShowPublishModal(true)}
+            disabled={testState === 'publishing'}
+          >
+            {testState === 'publishing' ? <><span className="pub-spinner" />Publishing…</> : 'Publish'}
+          </button>
+        </div>
+      </div>
+
+      <div className="stage">
+        <div className="flows-accordion">
+          <button className="flows-head" onClick={() => setFlowsOpen(v => !v)}>
+            <span>FLOWS</span>
+            <Icon name={flowsOpen ? 'chevron-up' : 'chevron-down'} size={12} />
+          </button>
+          {flowsOpen && (
+            <div className="flows-list">
+              <button className="flow-item" onClick={openFlow1}>1. Create a test</button>
+              <button className="flow-item" onClick={openFlow2}>2. Manage an ongoing test</button>
+              <button className="flow-item" onClick={openFlow3}>3. Complete- review and select winner</button>
+            </div>
+          )}
+        </div>
+
+        {/* Canvas */}
+        <div className={'canvas-area' + (isVariantGenerating ? ' regenerating' : '')}>
+          <SubToolbar selection={selection} />
+          {testState === 'pending-publish' && showReadyBanner && (
+            <div className="publish-banner">
+              <span><strong>A/B test ready.</strong> Publish your site to start collecting data.</span>
+              <button className="pub-btn" onClick={() => setShowPublishModal(true)}>Publish now</button>
+            </div>
+          )}
+          {testState === 'live' && (
+            <div
+              className="publish-banner live"
+              style={liveBannerPos ? { left: liveBannerPos.x, top: liveBannerPos.y, transform: 'none' } : undefined}
+            >
+              <div
+                className="drag-handle"
+                onMouseDown={(e) => {
+                  const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                  setDragState({ offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top });
+                }}
+                title="Drag"
+              >
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
+                  <circle cx="2" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="2" cy="10" r="1"/>
+                  <circle cx="8" cy="2" r="1"/><circle cx="8" cy="6" r="1"/><circle cx="8" cy="10" r="1"/>
+                </svg>
+              </div>
+              <span className="live-text">A/B test is live. Stop the test to make edits to this page.</span>
+              <button
+                className="pub-btn"
+                onClick={() => {
+                  setShowManagePanel(true);
+                  setShowWizard(false);
+                  setShowPages(false);
+                }}
+              >
+                Manage test
+              </button>
+            </div>
+          )}
+          {testState === 'completed' && (
+            <div className="publish-banner completed">
+              <div className="drag-handle" title="Banner status">
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" aria-hidden="true">
+                  <circle cx="2" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="2" cy="10" r="1"/>
+                  <circle cx="8" cy="2" r="1"/><circle cx="8" cy="6" r="1"/><circle cx="8" cy="10" r="1"/>
+                </svg>
+              </div>
+              <span className="live-text">A/B test is completed. Select the version you want to keep.</span>
+              <button className="pub-btn" onClick={openResultsView}>See results</button>
+              <button className="pub-btn" onClick={() => showToast('Winner selection flow coming soon')}>Select variant</button>
+            </div>
+          )}
+          <SitePreview
+            variant={previewVariant}
+            selection={selection}
+            onSelect={setSelection}
+            pageDropdown={
+              <PageDropdown
+                pageId={selectedPageId}
+                onChange={setSelectedPageId}
+                onOpenManage={() => setShowPages(true)}
+              />
+            }
+          />
+          <div className="section-handles">
+            <button title="Section"><Icon name="square" size={12} /></button>
+            <button title="Move up"><Icon name="arrow-up" size={12} /></button>
+            <button title="Move down"><Icon name="arrow-down" size={12} /></button>
+            <button title="More"><Icon name="dot-vertical" size={12} /></button>
+          </div>
+          <div className="section-rightmenu">
+            <button onClick={() => showToast('Generating new design (demo)')}><Icon name="sparkle" size={12} /> Generate new design</button>
+            <button onClick={() => showToast('Fixing layout (demo)')}><Icon name="grid" size={12} /> Fix layout</button>
+            <button onClick={() => showToast('Improving section text (demo)')}><Icon name="edit" size={12} /> Improve section text</button>
+          </div>
+          <div className="bottom-utils">
+            <button title="Settings"><Icon name="settings" size={14} /></button>
+            <button title="History"><Icon name="clock" size={14} /></button>
+          </div>
+          <div className="bottom-chat" title="Chat" onClick={() => showToast('Opening chat (demo)')} />
+        </div>
+
+        {/* Left panels */}
+        {showPages && !showWizard && !showManagePanel && (
+          <PagesPanel
+            onClose={() => setShowPages(false)}
+            selectedPageId={selectedPageId}
+            onSelectPage={setSelectedPageId}
+            onContextMenu={handleContextMenu}
+            testState={testState}
+            testPageId={pendingTest ? 'home' : null}
+            previewVariant={previewVariant}
+            onSelectVariant={(v) => { setPreviewVariant(v); setSelectedPageId('home'); }}
+            activeMenuPageId={ctxMenu?.pageId || null}
+          />
+        )}
+        {showWizard && (
+          <Wizard
+            onClose={() => { setShowWizard(false); setShowPages(true); setPreviewVariant('A'); setFocusedChangeId(null); }}
+            onStart={onWizardStart}
+            previewVariant={previewVariant}
+            setPreviewVariant={setPreviewVariant}
+            focusedChangeId={focusedChangeId}
+            setFocusedChangeId={setFocusedChangeId}
+            onVariantGeneratingChange={setIsVariantGenerating}
+          />
+        )}
+        {showManagePanel && testState === 'live' && (
+          <ManageAbTestPanel
+            onClose={() => {
+              setShowManagePanel(false);
+              setShowPages(true);
+            }}
+            selectedVariant={previewVariant}
+            onSelectVariant={(v) => {
+              setPreviewVariant(v);
+              setSelectedPageId('home');
+            }}
+            onOpenResults={openResultsView}
+          />
+        )}
+
+        {ctxMenu && (
+          <ContextMenu
+            x={ctxMenu.x} y={ctxMenu.y}
+            onAction={handleCtxAction}
+            onClose={() => setCtxMenu(null)}
+            isTestLive={testState === 'live'}
+          />
+        )}
+
+        {showPublishModal && (
+          <div className="modal-bg" onClick={(e) => { if (e.target.className === 'modal-bg' && testState !== 'publishing') setShowPublishModal(false); }}>
+            <div className="modal publish-flow">
+              <div className="modal-h">
+                <h3 className="t">Publish and start A/B test</h3>
+                <p className="s">Once you start & publish the test, traffic will start spliting between the two variants. You can pause or end the test at any time. You can also save your created test as draft to publish it later.</p>
+              </div>
+              <div className="publish-summary">
+                <div className="line"><span className="k">Name:</span>{pendingTest?.outline.testName || 'Drive more clicks to CTA'}</div>
+                <div className="line"><span className="k">Duration:</span>{pendingTest?.outline.duration || '14 days'}</div>
+                <div className="line"><span className="k">Main metric:</span>{pendingTest?.outline.mainMetric || 'Button clicks'}</div>
+                <div className="line"><span className="k">Exposure:</span>{pendingTest?.outline.exposure ?? 100}%</div>
+                <div className="line"><span className="k">Traffic split:</span>{pendingTest?.outline.split || 'Automatic'}</div>
+                <div className="line"><span className="k">Target audience:</span>All users</div>
+              </div>
+              <div className="modal-foot">
+                <button className="secondary" onClick={saveForLater} disabled={testState === 'publishing'}>Save for later</button>
+                <button className="primary" onClick={doPublish} disabled={testState === 'publishing'}>
+                  {testState === 'publishing' ? <><span className="pub-spinner" />Publishing…</> : 'Publish & Start'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showSuccessModal && (
+          <div className="modal-bg success-bg" onClick={(e) => { if (e.target.className === 'modal-bg success-bg') setShowSuccessModal(false); }}>
+            <div className="modal success-popover">
+              <div className="modal-h">
+                <button className="icon-btn" onClick={() => setShowSuccessModal(false)} title="Close"><Icon name="x" size={14} /></button>
+              </div>
+              <div className="success-body">
+                <div className="success-check">✓</div>
+                <div className="success-title">Congrats, your site is published<br/>with the winning variant!</div>
+                <div className="success-sub">Variant B is now live for all visitors. Your test results have been saved and are available in the A/B test dashboard.</div>
+                <div className="success-link"><Icon name="globe" size={20} stroke="#7a7a7a" />shanigurev.wixsite.com/women-in-stocks. <strong>View Site</strong></div>
+                <div className="success-mobile">View your site on mobile</div>
+              </div>
+            </div>
+          </div>
+        )}
+        {showWinnerModal && (
+          <div className="modal-bg success-bg" onClick={(e) => { if (e.target.className === 'modal-bg success-bg') setShowWinnerModal(false); }}>
+            <div className="modal winner-popover">
+              <div className="modal-h">
+                <button className="icon-btn" onClick={openResultsView} title="Close"><Icon name="x" size={14} /></button>
+              </div>
+              <div className="winner-body">
+                <div className="winner-check">✓</div>
+                <div className="winner-title">We have a winner!</div>
+                <div className="winner-sub">Your A/B test results are in. 'Variant B' is the top performer. Apply the winner as your live page now, or view the full results to make your decision.</div>
+                <div className="winner-actions">
+                  <button className="primary" onClick={applyWinnerAndPublish}>Apply &amp; Publish</button>
+                  <button className="link" onClick={openResultsView}>See full analytics</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {showApplyWinnerModal && (
+          <div className="modal-bg success-bg" style={{zIndex:700}} onClick={(e) => { if (e.target.className === 'modal-bg success-bg') setShowApplyWinnerModal(false); }}>
+            <div className="modal" style={{width:480}}>
+              <div className="modal-h" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'22px 24px 0'}}>
+                <p className="t" style={{fontSize:18, fontWeight:600, color:'#111', margin:0}}>Set Variant B as your live page</p>
+                <button className="icon-btn" onClick={() => setShowApplyWinnerModal(false)} style={{marginTop:2}}><Icon name="x" size={14} /></button>
+              </div>
+              <div className="modal-body" style={{paddingTop:14, paddingBottom:8, color:'#444', fontSize:13, lineHeight:1.6}}>
+                Your A/B test will end, and Variant B will replace the current &ldquo;Home&rdquo; page.<br/>
+                We&rsquo;ll keep your test results saved for future reference.<br/>
+                Publishing your site will apply this change for all visitors.
+              </div>
+              <div className="modal-foot" style={{borderTop:'1px solid #ececec', padding:'16px 24px 20px', gap:8}}>
+                <button className="secondary" onClick={() => setShowApplyWinnerModal(false)}>Cancel</button>
+                <button className="primary" onClick={() => { setShowApplyWinnerModal(false); applyWinnerAndPublish(); }}>Set &amp; Publish</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showResultsModal && (
+          <div className="modal-bg results-bg" onClick={(e) => { if (e.target.className === 'modal-bg results-bg') setShowResultsModal(false); }}>
+            <div className="modal results-popover">
+              <div className="results-topbar">
+                <div className="left">A/B tests</div>
+                <div className="right">
+                  <span><Icon name="arrow-up" size={11} style={{transform:'rotate(45deg)', marginRight:4}} />Open in new tab</span>
+                  <Icon name="dot-horizontal" size={12} />
+                  <Icon name="x" size={12} />
+                </div>
+              </div>
+              <div className="results-wrap">
+                <div className="results-main">
+                  <div className="results-headline">
+                    <div>
+                      <div className="results-title-row">
+                        <div className="results-title">Drive more clicks to CTA</div>
+                        <strong style={{background:'#d8efe6', border:'1px solid #b7d9ca', color:'#245546', padding:'1px 5px', fontWeight:500, fontSize:10}}>Completed</strong>
+                      </div>
+                      <div className="results-sub">Home page &nbsp;·&nbsp; Duration: 14 days &nbsp;·&nbsp; Traffic split: 50/50 &nbsp;·&nbsp; Audience: All</div>
+                    </div>
+                    <div style={{display:'inline-flex', gap:6, alignItems:'center'}}>
+                      <button className="icon-btn" title="More"><Icon name="dot-horizontal" size={14} /></button>
+                      <button className="results-ai-btn" title="Ask Aria"><Icon name="sparkle" size={13} stroke="#fff" /></button>
+                    </div>
+                  </div>
+                  <div className="results-green-banner">
+                    <span>Test completed. Variant B is the top performer. <strong>+28% more clicks</strong> than the original.</span>
+                    <button onClick={() => setShowApplyWinnerModal(true)}>Apply Winner</button>
+                  </div>
+                  <div className="results-table">
+                    <div className="r head">
+                      <div className="c">Variant</div><div className="c">Visitors</div><div className="c">Button Clicks</div><div className="c">Conversion Rate</div><div className="c">Bounce Rate</div><div className="c"></div>
+                    </div>
+                    <div className="r">
+                      <div className="c">Variant A (Original)</div><div className="c">4,600 - 50%</div><div className="c">1,832</div><div className="c">8.2%</div><div className="c">65%</div><div className="c kebab"><Icon name="dot-horizontal" size={13} /></div>
+                    </div>
+                    <div className="r">
+                      <div className="c">Variant B</div><div className="c">4,600 - 50%</div><div className="c">2,345 <strong style={{color:'#2a6655'}}>+32%</strong></div><div className="c">9.2% <strong style={{color:'#2a6655'}}>+8%</strong></div><div className="c">32% <strong style={{color:'#2a6655'}}>-28%</strong></div><div className="c kebab"><Icon name="dot-horizontal" size={13} /></div>
+                    </div>
+                  </div>
+                  <div className="results-grid">
+                    <div className="results-card">
+                      <div className="h"><span>Total Button clicks</span><span>View report</span></div>
+                      <div className="b">
+                        <svg className="results-line" viewBox="0 0 420 170" aria-hidden="true">
+                          <line x1="52" y1="18" x2="404" y2="18" stroke="#ececec"/>
+                          <line x1="52" y1="46" x2="404" y2="46" stroke="#ececec"/>
+                          <line x1="52" y1="74" x2="404" y2="74" stroke="#ececec"/>
+                          <line x1="52" y1="102" x2="404" y2="102" stroke="#ececec"/>
+                          <line x1="52" y1="130" x2="404" y2="130" stroke="#ececec"/>
+                          <line x1="52" y1="130" x2="52" y2="18" stroke="#d9d9d9"/>
+                          <line x1="52" y1="130" x2="404" y2="130" stroke="#d9d9d9"/>
+                          <rect x="142" y="48" width="56" height="82" fill="#6e6e6e"/>
+                          <rect x="222" y="22" width="56" height="108" fill="#343434"/>
+                          <text x="170" y="42" textAnchor="middle" fontSize="11" fill="#666">1,832</text>
+                          <text x="250" y="16" textAnchor="middle" fontSize="11" fill="#666">2,345</text>
+                          <text x="38" y="132" textAnchor="end" fontSize="11" fill="#7d7d7d">0</text>
+                          <text x="38" y="104" textAnchor="end" fontSize="11" fill="#7d7d7d">500</text>
+                          <text x="38" y="76" textAnchor="end" fontSize="11" fill="#7d7d7d">1,000</text>
+                          <text x="38" y="48" textAnchor="end" fontSize="11" fill="#7d7d7d">1,500</text>
+                          <text x="38" y="20" textAnchor="end" fontSize="11" fill="#7d7d7d">2,500</text>
+                        </svg>
+                        <div className="results-legend">
+                          <span><span className="dot" style={{background:'#6e6e6e'}}></span>Variant A</span>
+                          <span><span className="dot" style={{background:'#343434'}}></span>Variant B</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="results-card">
+                      <div className="h"><span>Visitors</span><span>View report</span></div>
+                      <div className="b">
+                        <div className="results-donut-wrap">
+                          <svg className="results-donut-svg" viewBox="0 0 200 200" aria-hidden="true">
+                            <circle cx="100" cy="100" r="72" fill="none" stroke="#8e8e8e" strokeWidth="30"
+                              strokeDasharray="226.2 226.2" strokeDashoffset="0"
+                              transform="rotate(-90 100 100)"/>
+                            <circle cx="100" cy="100" r="72" fill="none" stroke="#343434" strokeWidth="30"
+                              strokeDasharray="226.2 226.2" strokeDashoffset="-226.2"
+                              transform="rotate(-90 100 100)"/>
+                            <text x="100" y="94" textAnchor="middle" fontSize="11" fill="#999" fontFamily="Inter,sans-serif">Visitors</text>
+                            <text x="100" y="116" textAnchor="middle" fontSize="22" fontWeight="600" fill="#111" fontFamily="Inter,sans-serif">9,200</text>
+                          </svg>
+                          <div className="results-donut-legend">
+                            <div className="results-donut-legend-item">
+                              <span className="dot" style={{background:'#8e8e8e'}}></span>
+                              <span><span className="label-name">Variant A</span><span className="label-val">4,600 · 50%</span></span>
+                            </div>
+                            <div className="results-donut-legend-item">
+                              <span className="dot" style={{background:'#343434'}}></span>
+                              <span><span className="label-name">Variant B</span><span className="label-val">4,600 · 50%</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="results-grid bottom">
+                    <div className="results-card">
+                      <div className="h"><span>Button clicks over time</span><span>View report</span></div>
+                      <div className="b">
+                        <svg className="results-line" viewBox="0 0 320 90" aria-hidden="true">
+                          <line x1="34" y1="10" x2="308" y2="10" stroke="#ececec"/>
+                          <line x1="34" y1="28" x2="308" y2="28" stroke="#ececec"/>
+                          <line x1="34" y1="46" x2="308" y2="46" stroke="#ececec"/>
+                          <line x1="34" y1="64" x2="308" y2="64" stroke="#ececec"/>
+                          <line x1="34" y1="82" x2="308" y2="82" stroke="#ececec"/>
+                          <line x1="34" y1="10" x2="34" y2="82" stroke="#d9d9d9"/>
+                          <line x1="34" y1="82" x2="308" y2="82" stroke="#d9d9d9"/>
+                          <line x1="78" y1="10" x2="78" y2="82" stroke="#f0f0f0"/>
+                          <line x1="122" y1="10" x2="122" y2="82" stroke="#f0f0f0"/>
+                          <line x1="166" y1="10" x2="166" y2="82" stroke="#f0f0f0"/>
+                          <line x1="210" y1="10" x2="210" y2="82" stroke="#f0f0f0"/>
+                          <line x1="254" y1="10" x2="254" y2="82" stroke="#f0f0f0"/>
+                          <polyline points="34,80 122,50 166,28 254,50 308,24" fill="none" stroke="#1f1f1f" strokeWidth="2"/>
+                          <polyline points="34,86 122,80 166,74 254,80 308,84" fill="none" stroke="#8e8e8e" strokeWidth="2"/>
+                          <text x="26" y="84" textAnchor="end" fontSize="9" fill="#7d7d7d">20</text>
+                          <text x="26" y="66" textAnchor="end" fontSize="9" fill="#7d7d7d">30</text>
+                          <text x="26" y="48" textAnchor="end" fontSize="9" fill="#7d7d7d">40</text>
+                          <text x="26" y="30" textAnchor="end" fontSize="9" fill="#7d7d7d">50</text>
+                          <text x="34" y="89" fontSize="9" fill="#7d7d7d">12:00</text>
+                          <text x="122" y="89" textAnchor="middle" fontSize="9" fill="#7d7d7d">14:00</text>
+                          <text x="210" y="89" textAnchor="middle" fontSize="9" fill="#7d7d7d">16:00</text>
+                          <text x="308" y="89" textAnchor="end" fontSize="9" fill="#7d7d7d">18:00</text>
+                        </svg>
+                        <div className="results-legend" style={{paddingLeft:58, marginTop:2}}>
+                          <span><span className="dot" style={{background:'#8e8e8e'}}></span>Variant A</span>
+                          <span><span className="dot" style={{background:'#1f1f1f'}}></span>Variant B</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="results-card">
+                      <div className="h"><span>Top Clicks</span><span>View report</span></div>
+                      <div className="b">
+                        <table className="results-topclicks">
+                          <thead><tr><th>Element</th><th>Variant A</th><th>Variant B</th></tr></thead>
+                          <tbody>
+                            <tr><td>Sign Up<br/><span style={{color:'#888'}}>Hero</span></td><td>10</td><td>20 &nbsp;100%↑</td></tr>
+                            <tr><td>Watch Webinar<br/><span style={{color:'#888'}}>Events</span></td><td>8</td><td>15 &nbsp;88%↑</td></tr>
+                            <tr><td>Learn More<br/><span style={{color:'#888'}}>About</span></td><td>5</td><td>8 &nbsp;60%↑</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="results-chat">
+                  <div className="title"><span>Aria</span><span style={{display:'inline-flex', gap:'6px'}}><Icon name="square" size={10} /><Icon name="x" size={10} /></span></div>
+                  <div className="tip">Summarize the results for me, specify any important elements to consider before making the decision.</div>
+                  <div className="progress-row"><span>Show progress</span><span>v</span></div>
+                  <div className="text">Variant B is the clear winner, outperforming the original by +28% on desktop and +7% on mobile. Statistical confidence has been reached across both devices.</div>
+                  <div className="text">The stronger performance on desktop is driving the overall result. Mobile shows a positive lift too, but a smaller gap.</div>
+                  <div className="text">My recommendation: apply Variant B as your live page. The data is solid enough to act on.</div>
+                  <div className="ask">Ask me anything...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div className="toast"><span>{toast.msg}</span></div>
+        )}
+      </div>
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
